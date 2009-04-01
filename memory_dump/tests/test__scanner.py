@@ -23,39 +23,40 @@ from memory_dump import (
 
 class TestSizeOf(tests.TestCase):
 
-    def assertSizeOf(self, expected_size, obj):
+    def assertSizeOf(self, num_words, extra_size, obj):
+        expected_size = extra_size + num_words * _scanner._word_size
         self.assertEqual(expected_size, _scanner.size_of(obj))
 
     def test_empty_string(self):
-        self.assertSizeOf(24, '')
+        self.assertSizeOf(6, 0, '')
 
     def test_short_string(self):
-        self.assertSizeOf(25, 'a')
+        self.assertSizeOf(6, 1, 'a')
 
     def test_long_string(self):
-        self.assertSizeOf(24 + 100*1024, ('abcd'*25)*1024)
+        self.assertSizeOf(6, 100*1024, ('abcd'*25)*1024)
 
     def test_tuple(self):
-        self.assertSizeOf(12, ())
+        self.assertSizeOf(3, 0, ())
 
     def test_tuple_one(self):
-        self.assertSizeOf(16, ('a',))
+        self.assertSizeOf(3+1, 0, ('a',))
 
     def test_tuple_n(self):
-        self.assertSizeOf(12+4*3, (1, 2, 3))
+        self.assertSizeOf(3+3, 0, (1, 2, 3))
 
     def test_empty_list(self):
-        self.assertSizeOf(20, [])
+        self.assertSizeOf(5, 0, [])
 
     def test_list_with_one(self):
-        self.assertSizeOf(24, [1])
+        self.assertSizeOf(5+1, 0, [1])
 
     def test_list_with_three(self):
-        self.assertSizeOf(32, [1, 2, 3])
+        self.assertSizeOf(5+3, 0, [1, 2, 3])
 
     def test_list_appended(self):
         # Lists over-allocate when you append to them, we want the *allocated*
         # size
         lst = []
         lst.append(1)
-        self.assertSizeOf(36, lst)
+        self.assertSizeOf(5+4, 0, lst)

@@ -57,6 +57,9 @@ cdef Py_ssize_t _size_of_list(PyListObject *c_obj):
     return size
 
 
+_word_size = sizeof(Py_ssize_t)
+
+
 def size_of(obj):
     """Compute the size of the object.
 
