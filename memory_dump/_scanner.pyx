@@ -14,28 +14,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-"""Helpers for loading and running the test suite."""
-
-import unittest
-
-TestCase = unittest.TestCase
+"""The core routines for scanning python references and dumping memory info."""
 
 
-def run_suite():
-    runner = unittest.TextTestRunner()
-    suite = test_suite()
-    return runner.run(suite)
-
-
-def test_suite():
-    module_names = [
-        'test__scanner',
-        ]
-    full_names = [__name__ + '.' + n for n in module_names]
-
-    loader = unittest.TestLoader()
-    suite = loader.suiteClass()
-    for full_name in full_names:
-        module = __import__(full_name, {}, {}, [None])
-        suite.addTests(loader.loadTestsFromModule(module))
-    return suite
