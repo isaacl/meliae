@@ -16,12 +16,46 @@
 
 """Tests for the object scanner."""
 
-from memory_dump import tests
+from memory_dump import (
+    _scanner,
+    tests,
+    )
 
+class TestSizeOf(tests.TestCase):
 
-class TestScanner(tests.TestCase):
+    def assertSizeOf(self, expected_size, obj):
+        self.assertEqual(expected_size, _scanner.size_of(obj))
 
-    def test_import(self):
-        from memory_dump import _scanner
+    def test_empty_string(self):
+        self.assertSizeOf(24, '')
 
+    def test_short_string(self):
+        self.assertSizeOf(25, 'a')
 
+    def test_long_string(self):
+        self.assertSizeOf(24 + 100*1024, ('abcd'*25)*1024)
+
+    def test_tuple(self):
+        self.assertSizeOf(12, ())
+
+    def test_tuple_one(self):
+        self.assertSizeOf(16, ('a',))
+
+    def test_tuple_n(self):
+        self.assertSizeOf(12+4*3, (1, 2, 3))
+
+    def test_empty_list(self):
+        self.assertSizeOf(20, [])
+
+    def test_list_with_one(self):
+        self.assertSizeOf(24, [1])
+
+    def test_list_with_three(self):
+        self.assertSizeOf(32, [1, 2, 3])
+
+    def test_list_appended(self):
+        # Lists over-allocate when you append to them, we want the *allocated*
+        # size
+        lst = []
+        lst.append(1)
+        self.assertSizeOf(36, lst)
