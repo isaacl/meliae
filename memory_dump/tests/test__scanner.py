@@ -60,3 +60,42 @@ class TestSizeOf(tests.TestCase):
         lst = []
         lst.append(1)
         self.assertSizeOf(5+4, 0, lst)
+
+    def test_empty_set(self):
+        self.assertSizeOf(25, 0, set())
+        self.assertSizeOf(25, 0, frozenset())
+
+    def test_small_sets(self):
+        self.assertSizeOf(25, 0, set(range(1)))
+        self.assertSizeOf(25, 0, set(range(2)))
+        self.assertSizeOf(25, 0, set(range(3)))
+        self.assertSizeOf(25, 0, set(range(4)))
+        self.assertSizeOf(25, 0, set(range(5)))
+        self.assertSizeOf(25, 0, frozenset(range(3)))
+
+    def test_medium_sets(self):
+        self.assertSizeOf(25 + 512*2, 0, set(range(100)))
+        self.assertSizeOf(25 + 512*2, 0, frozenset(range(100)))
+
+    def test_empty_dict(self):
+        self.assertSizeOf(31, 0, dict())
+
+    def test_small_dict(self):
+        self.assertSizeOf(31, 0, dict.fromkeys(range(1)))
+        self.assertSizeOf(31, 0, dict.fromkeys(range(2)))
+        self.assertSizeOf(31, 0, dict.fromkeys(range(3)))
+        self.assertSizeOf(31, 0, dict.fromkeys(range(4)))
+        self.assertSizeOf(31, 0, dict.fromkeys(range(5)))
+
+    def test_medium_dict(self):
+        self.assertSizeOf(31+512*3, 0, dict.fromkeys(range(100)))
+
+    def test_basic_types(self):
+        self.assertSizeOf(106, 0, dict)
+        self.assertSizeOf(106, 0, set)
+        self.assertSizeOf(106, 0, tuple)
+
+    def test_user_type(self):
+        class Foo(object):
+            pass
+        self.assertSizeOf(106, 0, Foo)

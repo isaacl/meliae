@@ -21,7 +21,8 @@ cdef extern from "Python.h":
         char * tp_name
         Py_ssize_t tp_basicsize
         Py_ssize_t tp_itemsize
-    struct _object:
+
+    ctypedef struct PyObject:
         Py_ssize_t ob_refcnt
         _typeobject *ob_type
 
@@ -35,10 +36,29 @@ cdef extern from "Python.h":
         _typeobject *ob_type
         Py_ssize_t allocated
 
-    ctypedef _object PyObject
+    ctypedef struct setentry:
+        pass
+
+    ctypedef struct PySetObject:
+        Py_ssize_t ob_refcnt
+        _typeobject *ob_type
+        Py_ssize_t mask
+        setentry *table
+        setentry *smalltable
+
+    ctypedef struct PyDictEntry:
+        pass
+
+    ctypedef struct PyDictObject:
+        Py_ssize_t ob_refcnt
+        _typeobject *ob_type
+        Py_ssize_t ma_mask
+        Py_ssize_t ma_table
+        Py_ssize_t ma_smalltable
 
     int PyList_Check(object)
-    int PyString_CheckExact(object)
+    int PyAnySet_Check(object)
+    int PyDict_Check(object)
 
 
 cdef Py_ssize_t _basic_object_size(PyObject *c_obj):
@@ -57,6 +77,21 @@ cdef Py_ssize_t _size_of_list(PyListObject *c_obj):
     return size
 
 
+cdef Py_ssize_t _size_of_set(PySetObject *c_obj):
+    cdef Py_ssize_t size
+    size = _basic_object_size(<PyObject *>c_obj)
+    if c_obj.table != c_obj.smalltable:
+        size += sizeof(setentry) * (c_obj.mask + 1)
+    return size
+
+
+cdef Py_ssize_t _size_of_dict(PyDictObject *c_obj):
+    cdef Py_ssize_t size
+    size = _basic_object_size(<PyObject *>c_obj)
+    if c_obj.ma_table != c_obj.ma_smalltable:
+        size += sizeof(PyDictEntry) * (c_obj.ma_mask + 1)
+    return size
+
 _word_size = sizeof(Py_ssize_t)
 
 
@@ -74,6 +109,10 @@ def size_of(obj):
 
     if PyList_Check(obj):
         return _size_of_list(<PyListObject *>obj)
+    elif PyAnySet_Check(obj):
+        return _size_of_set(<PySetObject *>obj)
+    elif PyDict_Check(obj):
+        return _size_of_dict(<PyDictObject *>obj)
 
     c_obj = <PyObject *>obj
     if c_obj.ob_type.tp_itemsize != 0:
