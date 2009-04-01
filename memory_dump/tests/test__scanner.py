@@ -99,3 +99,23 @@ class TestSizeOf(tests.TestCase):
         class Foo(object):
             pass
         self.assertSizeOf(106, 0, Foo)
+
+    def test_simple_object(self):
+        obj = object()
+        self.assertSizeOf(2, 0, obj)
+
+    def test_user_instance(self):
+        class Foo(object):
+            pass
+        # This has a pointer to a dict and a weakref list
+        f = Foo()
+        self.assertSizeOf(4, 0, f)
+
+    def test_slotted_instance(self):
+        class One(object):
+            __slots__ = ['one']
+        # The basic object plus memory for one member
+        self.assertSizeOf(3, 0, One())
+        class Two(One):
+            __slots__ = ['two']
+        self.assertSizeOf(4, 0, Two())
