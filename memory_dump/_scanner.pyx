@@ -24,14 +24,22 @@ cdef extern from "stdio.h":
     size_t fprintf(FILE *, char *, ...)
 
 cdef extern from "Python.h":
+    struct _object
+
+    ctypedef int (*visitproc)(_object *, void *)
+    ctypedef int (*traverseproc)(_object *, visitproc, void *)
+
     struct _typeobject:
         char * tp_name
         Py_ssize_t tp_basicsize
         Py_ssize_t tp_itemsize
+        traverseproc tp_traverse
 
-    ctypedef struct PyObject:
+    struct _object:
         Py_ssize_t ob_refcnt
         _typeobject *ob_type
+
+    ctypedef _object PyObject
 
     ctypedef struct PyVarObject:
         Py_ssize_t ob_refcnt
@@ -153,12 +161,19 @@ def size_of(obj):
     return _size_of(c_obj)
 
 
+cdef int _dump_reference(PyObject *c_obj, void* val):
+    cdef FILE *out
+    out = <FILE *>val
+    fprintf(out, " 0x%08lx", <long>c_obj)
+
+
 cdef void _dump_object_info(FILE *out, PyObject * c_obj):
     cdef Py_ssize_t size
 
     size = _size_of(c_obj)
-    fprintf(out, "%08lx %s %d", <long>c_obj, c_obj.ob_type.tp_name,
-                                size)
+    fprintf(out, "0x%08lx %s %d", <long>c_obj, c_obj.ob_type.tp_name, size)
+    if c_obj.ob_type.tp_traverse != NULL:
+        c_obj.ob_type.tp_traverse(c_obj, _dump_reference, out)
     fprintf(out, "\n")
 
 

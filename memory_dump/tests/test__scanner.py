@@ -16,6 +16,7 @@
 
 """Tests for the object scanner."""
 
+import gc
 import tempfile
 
 from memory_dump import (
@@ -133,11 +134,20 @@ class TestSizeOf(tests.TestCase):
         self.assertSizeOf(6, _scanner._unicode_size*4, u'abcd')
         self.assertSizeOf(6, _scanner._unicode_size*2, u'\xbe\xe5')
 
+# A pure python implementation of dump_object_info
+def py_dump_object_info(obj):
+    start = '0x%08x %s %d' % (id(obj), obj.__class__.__name__,
+                              _scanner.size_of(obj))
+    ref_ids = []
+    for ref in gc.get_referents(obj):
+        ref_ids.append(' 0x%08x' % (id(ref),))
+    return start + ''.join(ref_ids) + '\n'
+
 
 class TestDumpInfo(tests.TestCase):
 
-    def assertDumpInfo(self, expected, obj):
-        start = '%08x ' % (id(obj),)
+
+    def assertDumpInfo(self, obj):
         t = tempfile.TemporaryFile(prefix='memory_dump-')
         # On some platforms TemporaryFile returns a wrapper object with 'file'
         # being the real object, on others, the returned object *is* the real
@@ -145,7 +155,46 @@ class TestDumpInfo(tests.TestCase):
         t_file = getattr(t, 'file', t)
         _scanner.dump_object_info(t_file, obj)
         t.seek(0)
-        self.assertEqual(start + expected, t.read())
+        self.assertEqual(py_dump_object_info(obj), t.read())
 
     def test_dump_int(self):
-        self.assertDumpInfo('int 12\n', 1)
+        self.assertDumpInfo(1)
+
+    def test_dump_tuple(self):
+        obj1 = object()
+        obj2 = object()
+        t = (obj1, obj2)
+        self.assertDumpInfo(t)
+
+    def test_dump_dict(self):
+        key = object()
+        val = object()
+        d = {key: val}
+        self.assertDumpInfo(d)
+
+    def test_class(self):
+        class Foo(object):
+            pass
+        class Child(Foo):
+            pass
+        self.assertDumpInfo(Child)
+
+    def test_instance(self):
+        class Foo(object):
+            pass
+        f = Foo()
+        self.assertDumpInfo(f)
+
+    def test_slot_instance(self):
+        class One(object):
+            __slots__ = ['one']
+        one = One()
+        one.one = object()
+        self.assertDumpInfo(one)
+
+        class Two(One):
+            __slots__ = ['two']
+        two = Two()
+        two.one = object()
+        two.two = object()
+        self.assertDumpInfo(two)
