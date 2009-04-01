@@ -56,9 +56,17 @@ cdef extern from "Python.h":
         Py_ssize_t ma_table
         Py_ssize_t ma_smalltable
 
+    ctypedef struct PyUnicodeObject:
+        Py_ssize_t ob_refcnt
+        _typeobject *ob_type
+        Py_ssize_t length
+
+    int Py_UNICODE_SIZE
+
     int PyList_Check(object)
     int PyAnySet_Check(object)
     int PyDict_Check(object)
+    int PyUnicode_Check(object)
 
 
 cdef Py_ssize_t _basic_object_size(PyObject *c_obj):
@@ -92,7 +100,15 @@ cdef Py_ssize_t _size_of_dict(PyDictObject *c_obj):
         size += sizeof(PyDictEntry) * (c_obj.ma_mask + 1)
     return size
 
+
+cdef Py_ssize_t _size_of_unicode(PyUnicodeObject *c_obj):
+    cdef Py_ssize_t size
+    size = _basic_object_size(<PyObject *>c_obj)
+    size += Py_UNICODE_SIZE * c_obj.length
+    return size
+
 _word_size = sizeof(Py_ssize_t)
+_unicode_size = Py_UNICODE_SIZE
 
 
 def size_of(obj):
@@ -113,6 +129,8 @@ def size_of(obj):
         return _size_of_set(<PySetObject *>obj)
     elif PyDict_Check(obj):
         return _size_of_dict(<PyDictObject *>obj)
+    elif PyUnicode_Check(obj):
+        return _size_of_unicode(<PyUnicodeObject *>obj)
 
     c_obj = <PyObject *>obj
     if c_obj.ob_type.tp_itemsize != 0:

@@ -119,3 +119,11 @@ class TestSizeOf(tests.TestCase):
         class Two(One):
             __slots__ = ['two']
         self.assertSizeOf(4, 0, Two())
+
+    def test_empty_unicode(self):
+        self.assertSizeOf(6, 0, u'')
+
+    def test_small_unicode(self):
+        self.assertSizeOf(6, _scanner._unicode_size*1, u'a')
+        self.assertSizeOf(6, _scanner._unicode_size*4, u'abcd')
+        self.assertSizeOf(6, _scanner._unicode_size*2, u'\xbe\xe5')
