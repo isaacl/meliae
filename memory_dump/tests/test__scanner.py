@@ -134,6 +134,10 @@ class TestSizeOf(tests.TestCase):
         self.assertSizeOf(6, _scanner._unicode_size*4, u'abcd')
         self.assertSizeOf(6, _scanner._unicode_size*2, u'\xbe\xe5')
 
+    def test_None(self):
+        self.assertSizeOf(2, 0, None)
+
+
 # A pure python implementation of dump_object_info
 def py_dump_object_info(obj):
     start = '0x%08x %s %d' % (id(obj), obj.__class__.__name__,
@@ -141,11 +145,19 @@ def py_dump_object_info(obj):
     ref_ids = []
     for ref in gc.get_referents(obj):
         ref_ids.append(' 0x%08x' % (id(ref),))
-    return start + ''.join(ref_ids) + '\n'
+    base_info = start + ''.join(ref_ids) + '\n'
+    # Now we walk again, for certain types we dump them directly
+    child_vals = []
+    for ref in gc.get_referents(obj):
+        if (isinstance(ref, (str, unicode))
+            or ref is None
+            or type(ref) is object):
+            # These types have no traverse func, so we dump them right away
+            child_vals.append(py_dump_object_info(ref))
+    return base_info + ''.join(child_vals)
 
 
 class TestDumpInfo(tests.TestCase):
-
 
     def assertDumpInfo(self, obj):
         t = tempfile.TemporaryFile(prefix='memory_dump-')
@@ -198,3 +210,6 @@ class TestDumpInfo(tests.TestCase):
         two.one = object()
         two.two = object()
         self.assertDumpInfo(two)
+
+    def test_None(self):
+        self.assertDumpInfo(None)

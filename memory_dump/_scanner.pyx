@@ -165,6 +165,17 @@ cdef int _dump_reference(PyObject *c_obj, void* val):
     cdef FILE *out
     out = <FILE *>val
     fprintf(out, " 0x%08lx", <long>c_obj)
+    return 0
+
+
+cdef int _dump_if_no_traverse(PyObject *c_obj, void* val):
+    cdef FILE *out
+    if c_obj.ob_type.tp_traverse != NULL:
+        return 0
+    out = <FILE *>val
+    # We know that it is safe to recurse here, because tp_traverse is NULL
+    _dump_object_info(out, c_obj)
+    return 0
 
 
 cdef void _dump_object_info(FILE *out, PyObject * c_obj):
@@ -175,6 +186,8 @@ cdef void _dump_object_info(FILE *out, PyObject * c_obj):
     if c_obj.ob_type.tp_traverse != NULL:
         c_obj.ob_type.tp_traverse(c_obj, _dump_reference, out)
     fprintf(out, "\n")
+    if c_obj.ob_type.tp_traverse != NULL:
+        c_obj.ob_type.tp_traverse(c_obj, _dump_if_no_traverse, out)
 
 
 def dump_object_info(object fp, object obj):
