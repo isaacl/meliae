@@ -80,6 +80,10 @@ cdef extern from "Python.h":
 
     int Py_UNICODE_SIZE
 
+    char *PyString_AS_STRING(PyObject *)
+    Py_ssize_t PyString_GET_SIZE(PyObject *)
+
+    int PyString_Check(PyObject *)
     int PyList_Check(PyObject *)
     int PyAnySet_Check(PyObject *)
     int PyDict_Check(PyObject *)
@@ -168,6 +172,23 @@ cdef int _dump_reference(PyObject *c_obj, void* val):
     return 0
 
 
+cdef void _dump_string(FILE *out, PyObject *c_obj):
+    # TODO: consider writing to a small memory buffer, before writing to disk
+    cdef Py_ssize_t str_size
+    cdef char *str_buf
+    cdef Py_ssize_t i
+
+    str_buf = PyString_AS_STRING(c_obj)
+    str_size = PyString_GET_SIZE(c_obj)
+
+    # Never try to dump more than this many chars
+    if str_size > 100:
+        str_size = 100
+    fprintf(out, " s ")
+    for i from 0 <= i < str_size:
+        fprintf(out, "%02x", <int>str_buf[i])
+
+
 cdef int _dump_if_no_traverse(PyObject *c_obj, void* val):
     cdef FILE *out
     if c_obj.ob_type.tp_traverse != NULL:
@@ -185,6 +206,8 @@ cdef void _dump_object_info(FILE *out, PyObject * c_obj):
     fprintf(out, "0x%08lx %s %d", <long>c_obj, c_obj.ob_type.tp_name, size)
     if c_obj.ob_type.tp_traverse != NULL:
         c_obj.ob_type.tp_traverse(c_obj, _dump_reference, out)
+    if PyString_Check(c_obj):
+        _dump_string(out, c_obj)
     fprintf(out, "\n")
     if c_obj.ob_type.tp_traverse != NULL:
         c_obj.ob_type.tp_traverse(c_obj, _dump_if_no_traverse, out)

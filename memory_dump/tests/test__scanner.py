@@ -145,7 +145,11 @@ def py_dump_object_info(obj):
     ref_ids = []
     for ref in gc.get_referents(obj):
         ref_ids.append(' 0x%08x' % (id(ref),))
-    base_info = start + ''.join(ref_ids) + '\n'
+    base_info = start + ''.join(ref_ids)
+    if isinstance(obj, str):
+        bytes = ''.join(['%02x' % ord(c) for c in obj[:100]])
+        base_info += ' s ' + bytes
+    base_info += '\n'
     # Now we walk again, for certain types we dump them directly
     child_vals = []
     for ref in gc.get_referents(obj):
