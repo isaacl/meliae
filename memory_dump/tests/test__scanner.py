@@ -149,6 +149,9 @@ def py_dump_object_info(obj):
     if isinstance(obj, str):
         bytes = ''.join(['%02x' % ord(c) for c in obj[:100]])
         base_info += ' s ' + bytes
+    elif isinstance(obj, unicode):
+        bytes = ''.join(['%08x' % ord(c) for c in obj[:100]])
+        base_info += ' u ' + bytes
     base_info += '\n'
     # Now we walk again, for certain types we dump them directly
     child_vals = []
@@ -217,3 +220,15 @@ class TestDumpInfo(tests.TestCase):
 
     def test_None(self):
         self.assertDumpInfo(None)
+
+    def test_str(self):
+        self.assertDumpInfo('this is a short string\n')
+
+    def test_long_str(self):
+        self.assertDumpInfo('abcd'*1000)
+
+    def test_unicode(self):
+        self.assertDumpInfo(u'this is a short string\n')
+
+    def test_long_unicode(self):
+        self.assertDumpInfo(u'abcd'*1000)

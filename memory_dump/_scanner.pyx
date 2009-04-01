@@ -79,6 +79,7 @@ cdef extern from "Python.h":
     FILE *PyFile_AsFile(object)
 
     int Py_UNICODE_SIZE
+    ctypedef int Py_UNICODE
 
     char *PyString_AS_STRING(PyObject *)
     Py_ssize_t PyString_GET_SIZE(PyObject *)
@@ -88,6 +89,8 @@ cdef extern from "Python.h":
     int PyAnySet_Check(PyObject *)
     int PyDict_Check(PyObject *)
     int PyUnicode_Check(PyObject *)
+    Py_UNICODE *PyUnicode_AS_UNICODE(PyObject *)
+    Py_ssize_t PyUnicode_GET_SIZE(PyObject *)
 
 
 cdef Py_ssize_t _basic_object_size(PyObject *c_obj):
@@ -189,6 +192,23 @@ cdef void _dump_string(FILE *out, PyObject *c_obj):
         fprintf(out, "%02x", <int>str_buf[i])
 
 
+cdef void _dump_unicode(FILE *out, PyObject *c_obj):
+    # TODO: consider writing to a small memory buffer, before writing to disk
+    cdef Py_ssize_t uni_size
+    cdef Py_UNICODE *uni_buf
+    cdef Py_ssize_t i
+
+    uni_buf = PyUnicode_AS_UNICODE(c_obj)
+    uni_size = PyUnicode_GET_SIZE(c_obj)
+
+    # Never try to dump more than this many chars
+    if uni_size > 100:
+        uni_size = 100
+    fprintf(out, " u ")
+    for i from 0 <= i < uni_size:
+        fprintf(out, "%08x", <unsigned int>uni_buf[i])
+
+
 cdef int _dump_if_no_traverse(PyObject *c_obj, void* val):
     cdef FILE *out
     if c_obj.ob_type.tp_traverse != NULL:
@@ -208,6 +228,8 @@ cdef void _dump_object_info(FILE *out, PyObject * c_obj):
         c_obj.ob_type.tp_traverse(c_obj, _dump_reference, out)
     if PyString_Check(c_obj):
         _dump_string(out, c_obj)
+    elif PyUnicode_Check(c_obj):
+        _dump_unicode(out, c_obj)
     fprintf(out, "\n")
     if c_obj.ob_type.tp_traverse != NULL:
         c_obj.ob_type.tp_traverse(c_obj, _dump_if_no_traverse, out)
