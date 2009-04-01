@@ -16,6 +16,13 @@
 
 """The core routines for scanning python references and dumping memory info."""
 
+cdef extern from "stdio.h":
+    ctypedef long size_t
+    ctypedef struct FILE:
+        pass
+    size_t fwrite(void *, size_t, size_t, FILE *)
+    size_t fprintf(FILE *, char *, ...)
+
 cdef extern from "Python.h":
     struct _typeobject:
         char * tp_name
@@ -61,12 +68,14 @@ cdef extern from "Python.h":
         _typeobject *ob_type
         Py_ssize_t length
 
+    FILE *PyFile_AsFile(object)
+
     int Py_UNICODE_SIZE
 
-    int PyList_Check(object)
-    int PyAnySet_Check(object)
-    int PyDict_Check(object)
-    int PyUnicode_Check(object)
+    int PyList_Check(PyObject *)
+    int PyAnySet_Check(PyObject *)
+    int PyDict_Check(PyObject *)
+    int PyUnicode_Check(PyObject *)
 
 
 cdef Py_ssize_t _basic_object_size(PyObject *c_obj):
@@ -111,6 +120,23 @@ _word_size = sizeof(Py_ssize_t)
 _unicode_size = Py_UNICODE_SIZE
 
 
+cdef Py_ssize_t _size_of(PyObject *c_obj):
+    if PyList_Check(c_obj):
+        return _size_of_list(<PyListObject *>c_obj)
+    elif PyAnySet_Check(c_obj):
+        return _size_of_set(<PySetObject *>c_obj)
+    elif PyDict_Check(c_obj):
+        return _size_of_dict(<PyDictObject *>c_obj)
+    elif PyUnicode_Check(c_obj):
+        return _size_of_unicode(<PyUnicodeObject *>c_obj)
+
+    if c_obj.ob_type.tp_itemsize != 0:
+        # Variable length object with inline storage
+        # total size is tp_itemsize * ob_size
+        return _var_object_size(<PyVarObject *>c_obj)
+    return _basic_object_size(c_obj)
+
+
 def size_of(obj):
     """Compute the size of the object.
 
@@ -123,18 +149,23 @@ def size_of(obj):
     """
     cdef PyObject *c_obj
 
-    if PyList_Check(obj):
-        return _size_of_list(<PyListObject *>obj)
-    elif PyAnySet_Check(obj):
-        return _size_of_set(<PySetObject *>obj)
-    elif PyDict_Check(obj):
-        return _size_of_dict(<PyDictObject *>obj)
-    elif PyUnicode_Check(obj):
-        return _size_of_unicode(<PyUnicodeObject *>obj)
-
     c_obj = <PyObject *>obj
-    if c_obj.ob_type.tp_itemsize != 0:
-        # Variable length object with inline storage
-        # total size is tp_itemsize * ob_size
-        return _var_object_size(<PyVarObject *>c_obj)
-    return _basic_object_size(c_obj)
+    return _size_of(c_obj)
+
+
+cdef void _dump_object_info(FILE *out, PyObject * c_obj):
+    cdef Py_ssize_t size
+
+    size = _size_of(c_obj)
+    fprintf(out, "%08lx %s %d", <long>c_obj, c_obj.ob_type.tp_name,
+                                size)
+    fprintf(out, "\n")
+
+
+def dump_object_info(object fp, object obj):
+    cdef FILE *out
+
+    out = PyFile_AsFile(fp)
+    if out == NULL:
+        raise TypeError('not a file')
+    _dump_object_info(out, <PyObject *>obj)

@@ -16,6 +16,8 @@
 
 """Tests for the object scanner."""
 
+import tempfile
+
 from memory_dump import (
     _scanner,
     tests,
@@ -53,6 +55,9 @@ class TestSizeOf(tests.TestCase):
 
     def test_list_with_three(self):
         self.assertSizeOf(5+3, 0, [1, 2, 3])
+
+    def test_int(self):
+        self.assertSizeOf(3, 0, 1)
 
     def test_list_appended(self):
         # Lists over-allocate when you append to them, we want the *allocated*
@@ -127,3 +132,20 @@ class TestSizeOf(tests.TestCase):
         self.assertSizeOf(6, _scanner._unicode_size*1, u'a')
         self.assertSizeOf(6, _scanner._unicode_size*4, u'abcd')
         self.assertSizeOf(6, _scanner._unicode_size*2, u'\xbe\xe5')
+
+
+class TestDumpInfo(tests.TestCase):
+
+    def assertDumpInfo(self, expected, obj):
+        start = '%08x ' % (id(obj),)
+        t = tempfile.TemporaryFile(prefix='memory_dump-')
+        # On some platforms TemporaryFile returns a wrapper object with 'file'
+        # being the real object, on others, the returned object *is* the real
+        # file object
+        t_file = getattr(t, 'file', t)
+        _scanner.dump_object_info(t_file, obj)
+        t.seek(0)
+        self.assertEqual(start + expected, t.read())
+
+    def test_dump_int(self):
+        self.assertDumpInfo('int 12\n', 1)
