@@ -206,7 +206,6 @@ class TestJSONUnicode(tests.TestCase):
         self.assertJSONUnicode(r'"\\x\/y\""', ur'\x/y"')
 
 
-
 # A pure python implementation of dump_object_info
 def _py_dump_json_obj(obj):
     content = [(
@@ -232,7 +231,7 @@ def _py_dump_json_obj(obj):
         ref_strs.append('%d' % (id(ref),))
     content.append(', '.join(ref_strs))
     content.append(']')
-    content.append('},\n')
+    content.append('}\n')
     return ''.join(content)
 
 
@@ -258,7 +257,7 @@ class TestPyDumpJSONObj(tests.TestCase):
         mystr = 'a string'
         self.assertDumpText(
             '{"address": %d, "type": "str", "size": %d, "len": 8'
-            ', "value": "a string", "refs": []},\n'
+            ', "value": "a string", "refs": []}\n'
             % (id(mystr), _scanner.size_of(mystr)),
             mystr)
 
@@ -266,14 +265,14 @@ class TestPyDumpJSONObj(tests.TestCase):
         myu = u'a \xb5nicode'
         self.assertDumpText(
             '{"address": %d, "type": "unicode", "size": %d'
-            ', "len": 9, "value": "a \\u00b5nicode", "refs": []},\n' % (
+            ', "len": 9, "value": "a \\u00b5nicode", "refs": []}\n' % (
                 id(myu), _scanner.size_of(myu)),
             myu)
 
     def test_obj(self):
         obj = object()
         self.assertDumpText(
-            '{"address": %d, "type": "object", "size": %d, "refs": []},\n'
+            '{"address": %d, "type": "object", "size": %d, "refs": []}\n'
             % (id(obj), _scanner.size_of(obj)), obj)
 
     def test_tuple(self):
@@ -282,14 +281,14 @@ class TestPyDumpJSONObj(tests.TestCase):
         t = (a, b)
         self.assertDumpText(
             '{"address": %d, "type": "tuple", "size": %d'
-            ', "len": 2, "refs": [%d, %d]},\n'
+            ', "len": 2, "refs": [%d, %d]}\n'
             % (id(t), _scanner.size_of(t), id(b), id(a)), t)
 
     def test_module(self):
         m = _scanner
         self.assertDumpText(
             '{"address": %d, "type": "module", "size": %d'
-            ', "name": "memory_dump._scanner", "refs": [%d]},\n'
+            ', "name": "memory_dump._scanner", "refs": [%d]}\n'
             % (id(m), _scanner.size_of(m), id(m.__dict__)), m)
 
 

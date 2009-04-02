@@ -55,8 +55,16 @@ class MemObject(object):
                 % (self.__class__.__name__, self.address, self.type_str,
                    name_str, self.size, len(self.ref_list), total_bytes))
 
+    def _intern_from_cache(self, cache):
+        """Intern values that we know are likely to not be unique."""
+        self.address = cache.setdefault(self.address, self.address)
+        self.type_str = cache.setdefault(self.type_str, self.type_str)
+        self.size = cache.setdefault(self.size, self.size)
+        self.ref_list = tuple([cache.setdefault(ref, ref)
+                                 for ref in self.ref_list])
+
     @classmethod
-    def from_json_dict(cls, val):
+    def from_json_dict(cls, val, temp_cache=None):
         # simplejson likes to turn everything into unicode strings, but we know
         # everything is just a plain 'str', and we can save some bytes if we
         # cast it back
@@ -70,6 +78,8 @@ class MemObject(object):
         if (obj.type_str == 'str'):
             if type(obj.value) is unicode:
                 obj.value = obj.value.encode('latin-1')
+        if temp_cache is not None:
+            obj._intern_from_cache(temp_cache)
         return obj
 
 
@@ -108,14 +118,22 @@ def _fill_total_size(objs):
 
 
 def load(fname):
-    obj_list = simplejson.load(open(fname))
+    f = open(fname, 'r')
     objs = {}
-    for obj in obj_list:
-        if not obj: # Skip the one empty object
+    temp_cache = {}
+    for line in open(fname):
+        if line in ("[\n", "]\n"):
+            continue
+        if line.endswith(',\n'):
+            line = line[:-2]
+        obj = simplejson.loads(line)
+        if not obj: # Skip an one empty object
             continue
         address = obj['address']
         if address in objs: # Skip duplicate objects
             continue
-        objs[address] = MemObject.from_json_dict(obj)
+        memobj = MemObject.from_json_dict(obj, temp_cache=temp_cache)
+        objs[memobj.address] = memobj
+    del temp_cache
     _fill_total_size(objs)
     return objs

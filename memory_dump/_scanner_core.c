@@ -266,7 +266,7 @@ _dump_object_info(FILE *out, PyObject *c_obj, int recurse)
         info.first = 1;
         c_obj->ob_type->tp_traverse(c_obj, _dump_reference, &info);
     }
-    fprintf(out, "]},\n");
+    fprintf(out, "]}\n");
     if (c_obj->ob_type->tp_traverse != NULL && recurse != 0) {
         if (recurse == 2) { /* Always dump one layer deeper */
             c_obj->ob_type->tp_traverse(c_obj, _dump_child, out);

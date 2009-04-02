@@ -29,7 +29,6 @@ def dump_all_referenced(outf, obj):
     """Recursively dump everything that is referenced from obj."""
     # if isinstance(outf, str):
     #     outf = open(outf, 'wb')
-    outf.write("[\n")
     pending = [obj]
     seen = _intset.IntSet()
     while pending:
@@ -42,9 +41,6 @@ def dump_all_referenced(outf, obj):
         for ref in gc.get_referents(next):
             if id(ref) not in seen:
                 pending.append(ref)
-    # We close with an empty object so that we can write valid JSON with
-    # everything having a trailing ','
-    outf.write("{}\n]\n")
 
 
 def dump_gc_objects(outf, recurse_depth=1):
@@ -54,9 +50,5 @@ def dump_gc_objects(outf, recurse_depth=1):
     """
     if isinstance(outf, basestring):
         outf = open(outf, 'wb')
-    outf.write("[\n")
     for obj in gc.get_objects():
         _scanner.dump_object_info(outf, obj, recurse_depth=recurse_depth)
-    # We close with an empty object so that we can write valid JSON with
-    # everything having a trailing ','
-    outf.write("{}\n]\n")
