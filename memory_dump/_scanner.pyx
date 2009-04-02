@@ -49,10 +49,10 @@ def size_of(obj):
     return _size_of(obj)
 
 
-def dump_object_info(object fp, object obj):
+def dump_object_info(object fp, object obj, recurse_depth=1):
     cdef FILE *out
 
     out = PyFile_AsFile(fp)
     if out == NULL:
         raise TypeError('not a file')
-    _dump_object_info(out, obj, 1)
+    _dump_object_info(out, obj, recurse_depth)

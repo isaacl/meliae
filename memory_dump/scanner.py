@@ -17,6 +17,7 @@
 """Some bits for helping to scan objects looking for referenced memory."""
 
 import gc
+import types
 
 from memory_dump import (
     _intset,
@@ -46,7 +47,7 @@ def dump_all_referenced(outf, obj):
     outf.write("{}\n]\n")
 
 
-def dump_gc_objects(outf):
+def dump_gc_objects(outf, recurse_depth=1):
     """Dump everything that is available via gc.objects().
 
     This does *not* do a recursive search.
@@ -54,11 +55,8 @@ def dump_gc_objects(outf):
     if isinstance(outf, basestring):
         outf = open(outf, 'wb')
     outf.write("[\n")
-    # None isn't in gc.get_objects(), for some reason we've been having
-    # problems not traversing to find it.
-    _scanner.dump_object_info(outf, None)
     for obj in gc.get_objects():
-        _scanner.dump_object_info(outf, obj)
+        _scanner.dump_object_info(outf, obj, recurse_depth=recurse_depth)
     # We close with an empty object so that we can write valid JSON with
     # everything having a trailing ','
     outf.write("{}\n]\n")

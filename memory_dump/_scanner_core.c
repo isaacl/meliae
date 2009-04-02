@@ -139,11 +139,16 @@ _dump_if_no_traverse(PyObject *c_obj, void *val)
 {
     FILE *out;
     out = (FILE *)val;
-    if (c_obj->ob_type->tp_traverse != NULL) {
-        return 0;
+    /* Objects without traverse are simple things without refs, and built-in
+     * types have a traverse, but they won't be part of gc.get_objects().
+     */
+    if (c_obj->ob_type->tp_traverse == NULL
+        || (PyType_Check(c_obj)
+            && !PyType_HasFeature((PyTypeObject*)c_obj, Py_TPFLAGS_HEAPTYPE)))
+    {
+        _dump_object_info(out, c_obj, 0);
     }
     // We know that it is safe to recurse here, because tp_traverse is NULL
-    _dump_object_info(out, c_obj, 0);
     return 0;
 }
 
