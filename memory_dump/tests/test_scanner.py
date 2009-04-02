@@ -66,3 +66,13 @@ class TestDumpAllReferenced(tests.TestCase):
         t = (k, v)
         l = [k, v, t]
         self.assertDumpAllReferenced([k, v, l, t], l)
+
+    def test_dump_recursive(self):
+        a = 1
+        b = 'str'
+        c = {}
+        l = [a, b, c]
+        c[a] = l
+        # We have a reference cycle here, but we should not loop endlessly :)
+        self.assertDumpAllReferenced([a, b, c, l], l)
+        self.assertDumpAllReferenced([a, b, c, l], c)
