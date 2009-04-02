@@ -21,6 +21,12 @@
 
 #include "_scanner_core.h"
 
+
+struct ref_info {
+    FILE *out;
+    int first;
+};
+
 Py_ssize_t
 _basic_object_size(PyObject *c_obj)
 {
@@ -105,9 +111,14 @@ _size_of(PyObject *c_obj)
 int
 _dump_reference(PyObject *c_obj, void* val)
 {
-    FILE *out;
-    out = (FILE *)val;
-    fprintf(out, " 0x%08lx", (long)c_obj);
+    struct ref_info *out;
+    out = (struct ref_info*)val;
+    if (out->first) {
+        out->first = 0;
+        fprintf(out->out, "%ld", (long)c_obj);
+    } else {
+        fprintf(out->out, ", %ld", (long)c_obj);
+    }
     return 0;
 }
 
@@ -127,24 +138,43 @@ _dump_if_no_traverse(PyObject *c_obj, void *val)
 
 
 void
+_dump_json_c_string(FILE *out, const char *buf, Py_ssize_t len)
+{
+    Py_ssize_t i;
+    char c;
+
+    // Never try to dump more than this many chars
+    if (len == -1) {
+        len = strlen(buf);
+    }
+    if (len > 100) {
+        len = 100;
+    }
+    fprintf(out, "\"");
+    for (i = 0; i < len; ++i) {
+        c = buf[i];
+        if (c < 0x1f || c > 0x7e) { // use the unicode escape sequence
+            fprintf(out, "\\u%04x", c);
+        } else if (c == '\\' || c == '/' || c == '"') {
+            fprintf(out, "\\%c", c);
+        } else {
+            fprintf(out, "%c", c);
+        }
+    }
+    fprintf(out, "\"");
+}
+
+void
 _dump_string(FILE *out, PyObject *c_obj)
 {
     // TODO: consider writing to a small memory buffer, before writing to disk
     Py_ssize_t str_size;
     char *str_buf;
-    Py_ssize_t i;
 
     str_buf = PyString_AS_STRING(c_obj);
     str_size = PyString_GET_SIZE(c_obj);
 
-    // Never try to dump more than this many chars
-    if (str_size > 100) {
-        str_size = 100;
-    }
-    fprintf(out, " s ");
-    for (i = 0; i < str_size; ++i) {
-        fprintf(out, "%02x", (int)str_buf[i]);
-    }
+    _dump_json_c_string(out, str_buf, str_size);
 }
 
 
@@ -153,7 +183,7 @@ _dump_unicode(FILE *out, PyObject *c_obj)
 {
     // TODO: consider writing to a small memory buffer, before writing to disk
     Py_ssize_t uni_size;
-    Py_UNICODE *uni_buf;
+    Py_UNICODE *uni_buf, c;
     Py_ssize_t i;
 
     uni_buf = PyUnicode_AS_UNICODE(c_obj);
@@ -163,10 +193,18 @@ _dump_unicode(FILE *out, PyObject *c_obj)
     if (uni_size > 100) {
         uni_size = 100;
     }
-    fprintf(out, " u ");
+    fprintf(out, "\"");
     for (i = 0; i < uni_size; ++i) {
-        fprintf(out, "%08x", (unsigned int)uni_buf[i]);
+        c = uni_buf[i];
+        if (c < 0x1f || c > 0x7e) {
+            fprintf(out, "\\u%04x", (unsigned short)c);
+        } else if (c == '\\' || c == '/' || c == '"') {
+            fprintf(out, "\\%c", (unsigned char)c);
+        } else {
+            fprintf(out, "%c", (unsigned char)c);
+        }
     }
+    fprintf(out, "\"");
 }
 
 
@@ -174,18 +212,36 @@ void
 _dump_object_info(FILE *out, PyObject *c_obj)
 {
     Py_ssize_t size;
+    struct ref_info info;
+
+    info.out = out;
 
     size = _size_of(c_obj);
-    fprintf(out, "0x%08lx %s %d", (long)c_obj, c_obj->ob_type->tp_name, size);
-    if (c_obj->ob_type->tp_traverse != NULL) {
-        c_obj->ob_type->tp_traverse(c_obj, _dump_reference, out);
+    fprintf(out, "{\"address\": %ld, \"type\": ", (long)c_obj);
+    _dump_json_c_string(out, c_obj->ob_type->tp_name, -1);
+    fprintf(out, ", \"size\": %d", _size_of(c_obj));
+    //  HANDLE __name__
+    if (PyModule_Check(c_obj)) {
+        fprintf(out, ", \"name\": ");
+        _dump_json_c_string(out, PyModule_GetName(c_obj), -1);
+    } else if (PyType_Check(c_obj)) {
+        fprintf(out, ", \"name\": ");
+        _dump_json_c_string(out, ((PyTypeObject *)c_obj)->tp_name, -1);
     }
+    fprintf(out, ", \"refs\": [");
+    if (c_obj->ob_type->tp_traverse != NULL) {
+        info.first = 1;
+        c_obj->ob_type->tp_traverse(c_obj, _dump_reference, &info);
+    }
+    fprintf(out, "]");
     if (PyString_Check(c_obj)) {
+        fprintf(out, ", \"value\": ");
         _dump_string(out, c_obj);
     } else if (PyUnicode_Check(c_obj)) {
+        fprintf(out, ", \"value\": ");
         _dump_unicode(out, c_obj);
     }
-    fprintf(out, "\n");
+    fprintf(out, "}\n");
     if (c_obj->ob_type->tp_traverse != NULL) {
         c_obj->ob_type->tp_traverse(c_obj, _dump_if_no_traverse, out);
     }

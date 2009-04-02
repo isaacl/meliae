@@ -141,7 +141,7 @@ class TestSizeOf(tests.TestCase):
 def _string_to_json(s):
     out = ['"']
     for c in s:
-        if c < '\x1F':
+        if c < '\x1F' or c > '\x7e':
             out.append(r'\u%04x' % ord(c))
         elif c in r'\/"':
             # Simple escape
@@ -207,7 +207,7 @@ class TestJSONUnicode(tests.TestCase):
 
 
 # A pure python implementation of dump_object_info
-def py_dump_json(obj):
+def _py_dump_json_obj(obj):
     content = [(
         '{"address": %d'
         ', "type": %s'
@@ -234,19 +234,7 @@ def py_dump_json(obj):
 
 
 def py_dump_object_info(obj):
-    start = '0x%08x %s %d' % (id(obj), obj.__class__.__name__,
-                              _scanner.size_of(obj))
-    ref_ids = []
-    for ref in gc.get_referents(obj):
-        ref_ids.append(' 0x%08x' % (id(ref),))
-    base_info = start + ''.join(ref_ids)
-    if isinstance(obj, str):
-        bytes = ''.join(['%02x' % ord(c) for c in obj[:100]])
-        base_info += ' s ' + bytes
-    elif isinstance(obj, unicode):
-        bytes = ''.join(['%08x' % ord(c) for c in obj[:100]])
-        base_info += ' u ' + bytes
-    base_info += '\n'
+    obj_info = _py_dump_json_obj(obj)
     # Now we walk again, for certain types we dump them directly
     child_vals = []
     for ref in gc.get_referents(obj):
@@ -254,14 +242,14 @@ def py_dump_object_info(obj):
             or ref is None
             or type(ref) is object):
             # These types have no traverse func, so we dump them right away
-            child_vals.append(py_dump_object_info(ref))
-    return base_info + ''.join(child_vals)
+            child_vals.append(_py_dump_json_obj(ref))
+    return obj_info + ''.join(child_vals)
 
 
-class TestPyDumpInfo(tests.TestCase):
+class TestPyDumpJSONObj(tests.TestCase):
 
     def assertDumpText(self, expected, obj):
-        self.assertEqual(expected, py_dump_json(obj))
+        self.assertEqual(expected, _py_dump_json_obj(obj))
 
     def test_str(self):
         mystr = 'a string'
@@ -335,6 +323,9 @@ class TestDumpInfo(tests.TestCase):
         class Child(Foo):
             pass
         self.assertDumpInfo(Child)
+
+    def test_module(self):
+        self.assertDumpInfo(_scanner)
 
     def test_instance(self):
         class Foo(object):
