@@ -218,6 +218,12 @@ def _py_dump_json_obj(obj):
     name = getattr(obj, '__name__', None)
     if name is not None:
         content.append(', "name": %s' % (_string_to_json(name),))
+    if getattr(obj, '__len__', None) is not None:
+        content.append(', "len": %s' % (len(obj),))
+    if isinstance(obj, str):
+        content.append(', "value": %s' % (_string_to_json(obj[:100]),))
+    elif isinstance(obj, unicode):
+        content.append(', "value": %s' % (_unicode_to_json(obj[:100]),))
     first = True
     content.append(', "refs": [')
     ref_strs = []
@@ -225,10 +231,6 @@ def _py_dump_json_obj(obj):
         ref_strs.append('%d' % (id(ref),))
     content.append(', '.join(ref_strs))
     content.append(']')
-    if isinstance(obj, str):
-        content.append(', "value": %s' % (_string_to_json(obj[:100]),))
-    elif isinstance(obj, unicode):
-        content.append(', "value": %s' % (_unicode_to_json(obj[:100]),))
     content.append('}\n')
     return ''.join(content)
 
@@ -254,15 +256,16 @@ class TestPyDumpJSONObj(tests.TestCase):
     def test_str(self):
         mystr = 'a string'
         self.assertDumpText(
-            '{"address": %d, "type": "str", "size": %d, "refs": []'
-            ', "value": "a string"}\n' % (id(mystr), _scanner.size_of(mystr)),
+            '{"address": %d, "type": "str", "size": %d, "len": 8'
+            ', "value": "a string", "refs": []}\n'
+            % (id(mystr), _scanner.size_of(mystr)),
             mystr)
 
     def test_unicode(self):
         myu = u'a \xb5nicode'
         self.assertDumpText(
-            '{"address": %d, "type": "unicode", "size": %d, "refs": []'
-            ', "value": "a \\u00b5nicode"}\n' % (
+            '{"address": %d, "type": "unicode", "size": %d'
+            ', "len": 9, "value": "a \\u00b5nicode", "refs": []}\n' % (
                 id(myu), _scanner.size_of(myu)),
             myu)
 
@@ -278,7 +281,7 @@ class TestPyDumpJSONObj(tests.TestCase):
         t = (a, b)
         self.assertDumpText(
             '{"address": %d, "type": "tuple", "size": %d'
-            ', "refs": [%d, %d]}\n'
+            ', "len": 2, "refs": [%d, %d]}\n'
             % (id(t), _scanner.size_of(t), id(b), id(a)), t)
 
     def test_module(self):

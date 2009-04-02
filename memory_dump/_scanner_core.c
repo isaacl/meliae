@@ -228,19 +228,29 @@ _dump_object_info(FILE *out, PyObject *c_obj)
         fprintf(out, ", \"name\": ");
         _dump_json_c_string(out, ((PyTypeObject *)c_obj)->tp_name, -1);
     }
+    if (PyString_Check(c_obj)) {
+        fprintf(out, ", \"len\": %d", PyString_GET_SIZE(c_obj));
+        fprintf(out, ", \"value\": ");
+        _dump_string(out, c_obj);
+    } else if (PyUnicode_Check(c_obj)) {
+        fprintf(out, ", \"len\": %d", PyUnicode_GET_SIZE(c_obj));
+        fprintf(out, ", \"value\": ");
+        _dump_unicode(out, c_obj);
+    } else if (PyTuple_Check(c_obj)) {
+        fprintf(out, ", \"len\": %d", PyTuple_GET_SIZE(c_obj));
+    } else if (PyList_Check(c_obj)) {
+        fprintf(out, ", \"len\": %d", PyList_GET_SIZE(c_obj));
+    } else if (PyAnySet_Check(c_obj)) {
+        fprintf(out, ", \"len\": %d", PySet_GET_SIZE(c_obj));
+    } else if (PyDict_Check(c_obj)) {
+        fprintf(out, ", \"len\": %d", PyDict_Size(c_obj));
+    }
     fprintf(out, ", \"refs\": [");
     if (c_obj->ob_type->tp_traverse != NULL) {
         info.first = 1;
         c_obj->ob_type->tp_traverse(c_obj, _dump_reference, &info);
     }
     fprintf(out, "]");
-    if (PyString_Check(c_obj)) {
-        fprintf(out, ", \"value\": ");
-        _dump_string(out, c_obj);
-    } else if (PyUnicode_Check(c_obj)) {
-        fprintf(out, ", \"value\": ");
-        _dump_unicode(out, c_obj);
-    }
     fprintf(out, "}\n");
     if (c_obj->ob_type->tp_traverse != NULL) {
         c_obj->ob_type->tp_traverse(c_obj, _dump_if_no_traverse, out);
