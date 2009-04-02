@@ -138,7 +138,64 @@ class TestSizeOf(tests.TestCase):
         self.assertSizeOf(2, 0, None)
 
 
+def _string_to_json(s):
+    out = ['"']
+    for c in s:
+        if c < '\x1F':
+            out.append(r'\u%04x' % ord(c))
+        elif c in r'\/"':
+            # Simple escape
+            out.append('\\' + c)
+        else:
+            out.append(c)
+    out.append('"')
+    return ''.join(out)
+
+
+class TestJSONString(tests.TestCase):
+
+    def assertJSONString(self, exp, input):
+        self.assertEqual(exp, _string_to_json(input))
+
+    def test_empty_string(self):
+        self.assertJSONString('""', '')
+
+    def test_simple_strings(self):
+        self.assertJSONString('"foo"', 'foo')
+        self.assertJSONString('"aoeu aoeu"', 'aoeu aoeu')
+
+    def test_simple_escapes(self):
+        self.assertJSONString(r'"\\x\/y\""', r'\x/y"')
+
+    def test_control_escapes(self):
+        self.assertJSONString(r'"\u0000\u0001\u0002"', '\x00\x01\x02')
+
+
 # A pure python implementation of dump_object_info
+def py_dump_json(obj):
+    content = [(
+        '{"address": %d'
+        ', "type": %s'
+        ', "size": %d'
+        ) % (id(obj), _string_to_json(obj.__class__.__name__),
+             _scanner.size_of(obj))
+        ]
+    name = getattr(obj, '__name__', None)
+    if name is not None:
+        content.append(', "name": %s' % (_string_to_json(name),))
+    first = True
+    content.append(', "refs": [')
+    ref_strs = []
+    for ref in gc.get_referents(obj):
+        ref_strs.append('%d' % (id(ref),))
+    content.append(', '.join(ref_strs))
+    content.append(']')
+    if isinstance(obj, str):
+        content.append(', "value": %s' % (_string_to_json(obj[:100]),))
+    content.append('}\n')
+    return ''.join(content)
+
+
 def py_dump_object_info(obj):
     start = '0x%08x %s %d' % (id(obj), obj.__class__.__name__,
                               _scanner.size_of(obj))
@@ -164,7 +221,43 @@ def py_dump_object_info(obj):
     return base_info + ''.join(child_vals)
 
 
+class TestPyDumpInfo(tests.TestCase):
+
+    def assertDumpText(self, expected, obj):
+        self.assertEqual(expected, py_dump_json(obj))
+
+    def test_str(self):
+        mystr = 'a string'
+        self.assertDumpText(
+            '{"address": %d, "type": "str", "size": %d, "refs": []'
+            ', "value": "a string"}\n' % (id(mystr), _scanner.size_of(mystr)),
+            mystr)
+
+    def test_obj(self):
+        obj = object()
+        self.assertDumpText(
+            '{"address": %d, "type": "object", "size": %d, "refs": []}\n'
+            % (id(obj), _scanner.size_of(obj)), obj)
+
+    def test_tuple(self):
+        a = object()
+        b = object()
+        t = (a, b)
+        self.assertDumpText(
+            '{"address": %d, "type": "tuple", "size": %d'
+            ', "refs": [%d, %d]}\n'
+            % (id(t), _scanner.size_of(t), id(b), id(a)), t)
+
+    def test_module(self):
+        m = _scanner
+        self.assertDumpText(
+            '{"address": %d, "type": "module", "size": %d'
+            ', "name": "memory_dump._scanner", "refs": [%d]}\n'
+            % (id(m), _scanner.size_of(m), id(m.__dict__)), m)
+
+
 class TestDumpInfo(tests.TestCase):
+    """dump_object_info should give the same result at py_dump_object_info"""
 
     def assertDumpInfo(self, obj):
         t = tempfile.TemporaryFile(prefix='memory_dump-')
