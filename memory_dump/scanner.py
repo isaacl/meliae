@@ -40,3 +40,14 @@ def dump_all_referenced(outf, obj):
         for ref in gc.get_referents(next):
             if id(ref) not in seen:
                 pending.append(ref)
+
+
+def dump_gc_objects(outf):
+    """Dump everything that is available via gc.objects().
+
+    This does *not* do a recursive search.
+    """
+    if isinstance(outf, basestring):
+        outf = open(outf, 'wb')
+    for obj in gc.get_objects():
+        _scanner.dump_object_info(outf, obj)
