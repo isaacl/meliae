@@ -21,14 +21,19 @@ import unittest
 TestCase = unittest.TestCase
 
 
-def run_suite():
-    runner = unittest.TextTestRunner()
+def run_suite(verbose=False):
+    if verbose:
+        verbosity = 2
+    else:
+        verbosity = 1
+    runner = unittest.TextTestRunner(verbosity=verbosity)
     suite = test_suite()
     return runner.run(suite)
 
 
 def test_suite():
     module_names = [
+        'test__intset',
         'test__scanner',
         ]
     full_names = [__name__ + '.' + n for n in module_names]

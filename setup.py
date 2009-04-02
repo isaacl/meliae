@@ -23,6 +23,8 @@ def config():
     ext.append(Extension("memory_dump._scanner",
                          ["memory_dump/_scanner.pyx",
                           "memory_dump/_scanner_core.c"]))
+    ext.append(Extension("memory_dump._intset",
+                         ["memory_dump/_intset.pyx"]))
 
     setup(**kwargs)
 
