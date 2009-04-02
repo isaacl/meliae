@@ -135,5 +135,5 @@ def load(fname):
         memobj = MemObject.from_json_dict(obj, temp_cache=temp_cache)
         objs[memobj.address] = memobj
     del temp_cache
-    _fill_total_size(objs)
+    # _fill_total_size(objs)
     return objs
