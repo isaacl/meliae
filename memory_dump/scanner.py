@@ -14,34 +14,29 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 
-"""Helpers for loading and running the test suite."""
+"""Some bits for helping to scan objects looking for referenced memory."""
 
-import unittest
+import gc
 
-TestCase = unittest.TestCase
-
-
-def run_suite(verbose=False):
-    if verbose:
-        verbosity = 2
-    else:
-        verbosity = 1
-    runner = unittest.TextTestRunner(verbosity=verbosity)
-    suite = test_suite()
-    return runner.run(suite)
+from memory_dump import (
+    _intset,
+    _scanner,
+    )
 
 
-def test_suite():
-    module_names = [
-        'test__intset',
-        'test__scanner',
-        'test_scanner',
-        ]
-    full_names = [__name__ + '.' + n for n in module_names]
-
-    loader = unittest.TestLoader()
-    suite = loader.suiteClass()
-    for full_name in full_names:
-        module = __import__(full_name, {}, {}, [None])
-        suite.addTests(loader.loadTestsFromModule(module))
-    return suite
+def dump_all_referenced(outf, obj):
+    """Recursively dump everything that is referenced from obj."""
+    # if isinstance(outf, str):
+    #     outf = open(outf, 'wb')
+    pending = [obj]
+    seen = _intset.IntSet()
+    while pending:
+        next = pending.pop()
+        id_next = id(next)
+        if id_next in seen:
+            continue
+        seen.add(id_next)
+        _scanner.dump_object_info(outf, next)
+        for ref in gc.get_referents(next):
+            if id(ref) not in seen:
+                pending.append(ref)

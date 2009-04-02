@@ -90,6 +90,8 @@ class TestIntSet(tests.TestCase):
 
     def test_discard(self):
         # Not supported yet... KnownFailure
+        pass
 
     def test_remove(self):
         # Not supported yet... KnownFailure
+        pass
