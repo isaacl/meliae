@@ -32,8 +32,13 @@
  * number of bytes for the basic list object. Note that lists over-allocate, so
  * this is not strictly sizeof(pointer) * num_items.
  */
-Py_ssize_t 
-_size_of(PyObject *c_obj);
+Py_ssize_t _size_of(PyObject *c_obj);
+
+/**
+ * Write the information about this object to the file.
+ */
+void _dump_object_info(FILE *out, PyObject *c_obj);
+
 
 #endif // _SCANNER_CORE_H_
 

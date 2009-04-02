@@ -101,77 +101,92 @@ _size_of(PyObject *c_obj)
     return _basic_object_size(c_obj);
 }
 
-// cdef int _dump_reference(PyObject *c_obj, void* val):
-//     cdef FILE *out
-//     out = <FILE *>val
-//     fprintf(out, " 0x%08lx", <long>c_obj)
-//     return 0
-// 
-// 
-// cdef void _dump_string(FILE *out, PyObject *c_obj):
-//     # TODO: consider writing to a small memory buffer, before writing to disk
-//     cdef Py_ssize_t str_size
-//     cdef char *str_buf
-//     cdef Py_ssize_t i
-// 
-//     str_buf = PyString_AS_STRING(c_obj)
-//     str_size = PyString_GET_SIZE(c_obj)
-// 
-//     # Never try to dump more than this many chars
-//     if str_size > 100:
-//         str_size = 100
-//     fprintf(out, " s ")
-//     for i from 0 <= i < str_size:
-//         fprintf(out, "%02x", <int>str_buf[i])
-// 
-// 
-// cdef void _dump_unicode(FILE *out, PyObject *c_obj):
-//     # TODO: consider writing to a small memory buffer, before writing to disk
-//     cdef Py_ssize_t uni_size
-//     cdef Py_UNICODE *uni_buf
-//     cdef Py_ssize_t i
-// 
-//     uni_buf = PyUnicode_AS_UNICODE(c_obj)
-//     uni_size = PyUnicode_GET_SIZE(c_obj)
-// 
-//     # Never try to dump more than this many chars
-//     if uni_size > 100:
-//         uni_size = 100
-//     fprintf(out, " u ")
-//     for i from 0 <= i < uni_size:
-//         fprintf(out, "%08x", <unsigned int>uni_buf[i])
-// 
-// 
-// cdef int _dump_if_no_traverse(PyObject *c_obj, void* val):
-//     cdef FILE *out
-//     if c_obj.ob_type.tp_traverse != NULL:
-//         return 0
-//     out = <FILE *>val
-//     # We know that it is safe to recurse here, because tp_traverse is NULL
-//     _dump_object_info(out, c_obj)
-//     return 0
-// 
-// 
-// cdef void _dump_object_info(FILE *out, PyObject * c_obj):
-//     cdef Py_ssize_t size
-// 
-//     size = _size_of(c_obj)
-//     fprintf(out, "0x%08lx %s %d", <long>c_obj, c_obj.ob_type.tp_name, size)
-//     if c_obj.ob_type.tp_traverse != NULL:
-//         c_obj.ob_type.tp_traverse(c_obj, _dump_reference, out)
-//     if PyString_Check(c_obj):
-//         _dump_string(out, c_obj)
-//     elif PyUnicode_Check(c_obj):
-//         _dump_unicode(out, c_obj)
-//     fprintf(out, "\n")
-//     if c_obj.ob_type.tp_traverse != NULL:
-//         c_obj.ob_type.tp_traverse(c_obj, _dump_if_no_traverse, out)
-// 
-// 
-// def dump_object_info(object fp, object obj):
-//     cdef FILE *out
-// 
-//     out = PyFile_AsFile(fp)
-//     if out == NULL:
-//         raise TypeError('not a file')
-//     _dump_object_info(out, <PyObject *>obj)
+
+int
+_dump_reference(PyObject *c_obj, void* val)
+{
+    FILE *out;
+    out = (FILE *)val;
+    fprintf(out, " 0x%08lx", (long)c_obj);
+    return 0;
+}
+
+
+int
+_dump_if_no_traverse(PyObject *c_obj, void *val)
+{
+    FILE *out;
+    if (c_obj->ob_type->tp_traverse != NULL) {
+        return 0;
+    }
+    out = (FILE *)val;
+    // We know that it is safe to recurse here, because tp_traverse is NULL
+    _dump_object_info(out, c_obj);
+    return 0;
+}
+
+
+void
+_dump_string(FILE *out, PyObject *c_obj)
+{
+    // TODO: consider writing to a small memory buffer, before writing to disk
+    Py_ssize_t str_size;
+    char *str_buf;
+    Py_ssize_t i;
+
+    str_buf = PyString_AS_STRING(c_obj);
+    str_size = PyString_GET_SIZE(c_obj);
+
+    // Never try to dump more than this many chars
+    if (str_size > 100) {
+        str_size = 100;
+    }
+    fprintf(out, " s ");
+    for (i = 0; i < str_size; ++i) {
+        fprintf(out, "%02x", (int)str_buf[i]);
+    }
+}
+
+
+void
+_dump_unicode(FILE *out, PyObject *c_obj)
+{
+    // TODO: consider writing to a small memory buffer, before writing to disk
+    Py_ssize_t uni_size;
+    Py_UNICODE *uni_buf;
+    Py_ssize_t i;
+
+    uni_buf = PyUnicode_AS_UNICODE(c_obj);
+    uni_size = PyUnicode_GET_SIZE(c_obj);
+
+    // Never try to dump more than this many chars
+    if (uni_size > 100) {
+        uni_size = 100;
+    }
+    fprintf(out, " u ");
+    for (i = 0; i < uni_size; ++i) {
+        fprintf(out, "%08x", (unsigned int)uni_buf[i]);
+    }
+}
+
+
+void
+_dump_object_info(FILE *out, PyObject *c_obj)
+{
+    Py_ssize_t size;
+
+    size = _size_of(c_obj);
+    fprintf(out, "0x%08lx %s %d", (long)c_obj, c_obj->ob_type->tp_name, size);
+    if (c_obj->ob_type->tp_traverse != NULL) {
+        c_obj->ob_type->tp_traverse(c_obj, _dump_reference, out);
+    }
+    if (PyString_Check(c_obj)) {
+        _dump_string(out, c_obj);
+    } else if (PyUnicode_Check(c_obj)) {
+        _dump_unicode(out, c_obj);
+    }
+    fprintf(out, "\n");
+    if (c_obj->ob_type->tp_traverse != NULL) {
+        c_obj->ob_type->tp_traverse(c_obj, _dump_if_no_traverse, out);
+    }
+}
