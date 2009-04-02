@@ -92,64 +92,12 @@ cdef extern from "Python.h":
     Py_UNICODE *PyUnicode_AS_UNICODE(PyObject *)
     Py_ssize_t PyUnicode_GET_SIZE(PyObject *)
 
+cdef extern from "_scanner_core.h":
+    Py_ssize_t _size_of(PyObject *c_obj)
 
-cdef Py_ssize_t _basic_object_size(PyObject *c_obj):
-    return c_obj.ob_type.tp_basicsize
-
-
-cdef Py_ssize_t _var_object_size(PyVarObject *c_obj):
-    return (c_obj.ob_type.tp_basicsize +
-            c_obj.ob_size * c_obj.ob_type.tp_itemsize)
-
-
-cdef Py_ssize_t _size_of_list(PyListObject *c_obj):
-    cdef Py_ssize_t size
-    size = _basic_object_size(<PyObject *>c_obj)
-    size += sizeof(PyObject*) * c_obj.allocated
-    return size
-
-
-cdef Py_ssize_t _size_of_set(PySetObject *c_obj):
-    cdef Py_ssize_t size
-    size = _basic_object_size(<PyObject *>c_obj)
-    if c_obj.table != c_obj.smalltable:
-        size += sizeof(setentry) * (c_obj.mask + 1)
-    return size
-
-
-cdef Py_ssize_t _size_of_dict(PyDictObject *c_obj):
-    cdef Py_ssize_t size
-    size = _basic_object_size(<PyObject *>c_obj)
-    if c_obj.ma_table != c_obj.ma_smalltable:
-        size += sizeof(PyDictEntry) * (c_obj.ma_mask + 1)
-    return size
-
-
-cdef Py_ssize_t _size_of_unicode(PyUnicodeObject *c_obj):
-    cdef Py_ssize_t size
-    size = _basic_object_size(<PyObject *>c_obj)
-    size += Py_UNICODE_SIZE * c_obj.length
-    return size
 
 _word_size = sizeof(Py_ssize_t)
 _unicode_size = Py_UNICODE_SIZE
-
-
-cdef Py_ssize_t _size_of(PyObject *c_obj):
-    if PyList_Check(c_obj):
-        return _size_of_list(<PyListObject *>c_obj)
-    elif PyAnySet_Check(c_obj):
-        return _size_of_set(<PySetObject *>c_obj)
-    elif PyDict_Check(c_obj):
-        return _size_of_dict(<PyDictObject *>c_obj)
-    elif PyUnicode_Check(c_obj):
-        return _size_of_unicode(<PyUnicodeObject *>c_obj)
-
-    if c_obj.ob_type.tp_itemsize != 0:
-        # Variable length object with inline storage
-        # total size is tp_itemsize * ob_size
-        return _var_object_size(<PyVarObject *>c_obj)
-    return _basic_object_size(c_obj)
 
 
 def size_of(obj):
@@ -162,10 +110,7 @@ def size_of(obj):
     :param obj: The object to measure
     :return: An integer of the number of bytes used by this object.
     """
-    cdef PyObject *c_obj
-
-    c_obj = <PyObject *>obj
-    return _size_of(c_obj)
+    return _size_of(<PyObject *>obj)
 
 
 cdef int _dump_reference(PyObject *c_obj, void* val):

@@ -20,9 +20,9 @@ def config():
         return
 
     kwargs["cmdclass"] = {"build_ext": build_ext}
-    ext.append(
-        Extension("memory_dump._scanner",
-                  ["memory_dump/_scanner.pyx"]))
+    ext.append(Extension("memory_dump._scanner",
+                         ["memory_dump/_scanner.pyx",
+                          "memory_dump/_scanner_core.c"]))
 
     setup(**kwargs)
 
