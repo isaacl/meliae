@@ -41,7 +41,9 @@ def dump_all_referenced(outf, obj):
         for ref in gc.get_referents(next):
             if id(ref) not in seen:
                 pending.append(ref)
-    outf.write("]\n")
+    # We close with an empty object so that we can write valid JSON with
+    # everything having a trailing ','
+    outf.write("{}\n]\n")
 
 
 def dump_gc_objects(outf):
@@ -54,4 +56,6 @@ def dump_gc_objects(outf):
     outf.write("[\n")
     for obj in gc.get_objects():
         _scanner.dump_object_info(outf, obj)
-    outf.write("]\n")
+    # We close with an empty object so that we can write valid JSON with
+    # everything having a trailing ','
+    outf.write("{}\n]\n")

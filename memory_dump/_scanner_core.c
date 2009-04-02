@@ -153,8 +153,8 @@ _dump_json_c_string(FILE *out, const char *buf, Py_ssize_t len)
     fprintf(out, "\"");
     for (i = 0; i < len; ++i) {
         c = buf[i];
-        if (c < 0x1f || c > 0x7e) { // use the unicode escape sequence
-            fprintf(out, "\\u%04x", c);
+        if (c <= 0x1f || c > 0x7e) { // use the unicode escape sequence
+            fprintf(out, "\\u00%02x", ((unsigned short)c & 0xFF));
         } else if (c == '\\' || c == '/' || c == '"') {
             fprintf(out, "\\%c", c);
         } else {
@@ -196,8 +196,8 @@ _dump_unicode(FILE *out, PyObject *c_obj)
     fprintf(out, "\"");
     for (i = 0; i < uni_size; ++i) {
         c = uni_buf[i];
-        if (c < 0x1f || c > 0x7e) {
-            fprintf(out, "\\u%04x", (unsigned short)c);
+        if (c <= 0x1f || c > 0x7e) {
+            fprintf(out, "\\u%04x", ((unsigned short)c & 0xFFFF));
         } else if (c == '\\' || c == '/' || c == '"') {
             fprintf(out, "\\%c", (unsigned char)c);
         } else {
@@ -250,8 +250,7 @@ _dump_object_info(FILE *out, PyObject *c_obj)
         info.first = 1;
         c_obj->ob_type->tp_traverse(c_obj, _dump_reference, &info);
     }
-    fprintf(out, "]");
-    fprintf(out, "}\n");
+    fprintf(out, "]},\n");
     if (c_obj->ob_type->tp_traverse != NULL) {
         c_obj->ob_type->tp_traverse(c_obj, _dump_if_no_traverse, out);
     }

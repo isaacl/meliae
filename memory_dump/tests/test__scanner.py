@@ -141,7 +141,7 @@ class TestSizeOf(tests.TestCase):
 def _string_to_json(s):
     out = ['"']
     for c in s:
-        if c < '\x1F' or c > '\x7e':
+        if c <= '\x1f' or c > '\x7e':
             out.append(r'\u%04x' % ord(c))
         elif c in r'\/"':
             # Simple escape
@@ -155,7 +155,7 @@ def _string_to_json(s):
 def _unicode_to_json(u):
     out = ['"']
     for c in u:
-        if c < u'\u001F' or c > u'\u007e':
+        if c <= u'\u001f' or c > u'\u007e':
             out.append(r'\u%04x' % ord(c))
         elif c in ur'\/"':
             # Simple escape
@@ -182,7 +182,7 @@ class TestJSONString(tests.TestCase):
         self.assertJSONString(r'"\\x\/y\""', r'\x/y"')
 
     def test_control_escapes(self):
-        self.assertJSONString(r'"\u0000\u0001\u0002"', '\x00\x01\x02')
+        self.assertJSONString(r'"\u0000\u0001\u0002\u001f"', '\x00\x01\x02\x1f')
 
 
 class TestJSONUnicode(tests.TestCase):
@@ -199,7 +199,8 @@ class TestJSONUnicode(tests.TestCase):
         self.assertJSONUnicode('"abcdefg"', u'abcdefg')
 
     def test_unicode_chars(self):
-        self.assertJSONUnicode(r'"\u0012\u00b5\u2030"', u'\x12\xb5\u2030')
+        self.assertJSONUnicode(r'"\u0012\u00b5\u2030\u001f"',
+                               u'\x12\xb5\u2030\x1f')
 
     def test_simple_escapes(self):
         self.assertJSONUnicode(r'"\\x\/y\""', ur'\x/y"')
@@ -231,7 +232,7 @@ def _py_dump_json_obj(obj):
         ref_strs.append('%d' % (id(ref),))
     content.append(', '.join(ref_strs))
     content.append(']')
-    content.append('}\n')
+    content.append('},\n')
     return ''.join(content)
 
 
@@ -257,7 +258,7 @@ class TestPyDumpJSONObj(tests.TestCase):
         mystr = 'a string'
         self.assertDumpText(
             '{"address": %d, "type": "str", "size": %d, "len": 8'
-            ', "value": "a string", "refs": []}\n'
+            ', "value": "a string", "refs": []},\n'
             % (id(mystr), _scanner.size_of(mystr)),
             mystr)
 
@@ -265,14 +266,14 @@ class TestPyDumpJSONObj(tests.TestCase):
         myu = u'a \xb5nicode'
         self.assertDumpText(
             '{"address": %d, "type": "unicode", "size": %d'
-            ', "len": 9, "value": "a \\u00b5nicode", "refs": []}\n' % (
+            ', "len": 9, "value": "a \\u00b5nicode", "refs": []},\n' % (
                 id(myu), _scanner.size_of(myu)),
             myu)
 
     def test_obj(self):
         obj = object()
         self.assertDumpText(
-            '{"address": %d, "type": "object", "size": %d, "refs": []}\n'
+            '{"address": %d, "type": "object", "size": %d, "refs": []},\n'
             % (id(obj), _scanner.size_of(obj)), obj)
 
     def test_tuple(self):
@@ -281,14 +282,14 @@ class TestPyDumpJSONObj(tests.TestCase):
         t = (a, b)
         self.assertDumpText(
             '{"address": %d, "type": "tuple", "size": %d'
-            ', "len": 2, "refs": [%d, %d]}\n'
+            ', "len": 2, "refs": [%d, %d]},\n'
             % (id(t), _scanner.size_of(t), id(b), id(a)), t)
 
     def test_module(self):
         m = _scanner
         self.assertDumpText(
             '{"address": %d, "type": "module", "size": %d'
-            ', "name": "memory_dump._scanner", "refs": [%d]}\n'
+            ', "name": "memory_dump._scanner", "refs": [%d]},\n'
             % (id(m), _scanner.size_of(m), id(m.__dict__)), m)
 
 
@@ -354,13 +355,13 @@ class TestDumpInfo(tests.TestCase):
         self.assertDumpInfo(None)
 
     def test_str(self):
-        self.assertDumpInfo('this is a short string\n')
+        self.assertDumpInfo('this is a short \x00 \x1f \xffstring\n')
 
     def test_long_str(self):
         self.assertDumpInfo('abcd'*1000)
 
     def test_unicode(self):
-        self.assertDumpInfo(u'this is a short string\n')
+        self.assertDumpInfo(u'this is a short \u1234 \x00 \x1f \xffstring\n')
 
     def test_long_unicode(self):
         self.assertDumpInfo(u'abcd'*1000)
