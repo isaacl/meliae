@@ -97,7 +97,7 @@ cdef class IntSet:
             elif (entry[0] == _singleton2 and freeslot == NULL):
                 # We found the first match that was a 'dummy' entry
                 freeslot = entry
-            perturb >>= 5 # PERTURB_SHIFT
+            perturb = perturb >> 5 # PERTURB_SHIFT
 
     def __contains__(self, val):
         cdef int_type c_val, *entry
@@ -148,7 +148,7 @@ cdef class IntSet:
                 self._add(val)
         assert self._count == old_count
         free(old_array)
-        
+
     cdef void _add(self, int_type c_val):
         cdef int_type *entry
         if c_val == _singleton1:
@@ -173,7 +173,7 @@ cdef class IntSet:
         if entry[0] == _singleton1 or entry[0] == _singleton2:
             # No value stored at this location
             entry[0] = c_val
-            self._count += 1
+            self._count = self._count + 1
             return
         assert False, ("self._lookup returned something which didn't"
                        " match %d, %d" % (c_val, entry[0]))
