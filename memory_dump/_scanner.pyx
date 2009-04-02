@@ -29,7 +29,7 @@ cdef extern from "Python.h":
 
 cdef extern from "_scanner_core.h":
     Py_ssize_t _size_of(object c_obj)
-    void _dump_object_info(FILE *, object c_obj)
+    void _dump_object_info(FILE *, object c_obj, int recurse)
 
 
 _word_size = sizeof(Py_ssize_t)
@@ -55,4 +55,4 @@ def dump_object_info(object fp, object obj):
     out = PyFile_AsFile(fp)
     if out == NULL:
         raise TypeError('not a file')
-    _dump_object_info(out, obj)
+    _dump_object_info(out, obj, 1)

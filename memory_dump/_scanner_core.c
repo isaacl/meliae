@@ -124,15 +124,26 @@ _dump_reference(PyObject *c_obj, void* val)
 
 
 int
+_dump_child(PyObject *c_obj, void *val)
+{
+    FILE *out;
+    out = (FILE *)val;
+    // The caller has asked us to dump self, but no recursive children
+    _dump_object_info(out, c_obj, 0);
+    return 0;
+}
+
+
+int
 _dump_if_no_traverse(PyObject *c_obj, void *val)
 {
     FILE *out;
+    out = (FILE *)val;
     if (c_obj->ob_type->tp_traverse != NULL) {
         return 0;
     }
-    out = (FILE *)val;
     // We know that it is safe to recurse here, because tp_traverse is NULL
-    _dump_object_info(out, c_obj);
+    _dump_object_info(out, c_obj, 0);
     return 0;
 }
 
@@ -209,7 +220,7 @@ _dump_unicode(FILE *out, PyObject *c_obj)
 
 
 void
-_dump_object_info(FILE *out, PyObject *c_obj)
+_dump_object_info(FILE *out, PyObject *c_obj, int recurse)
 {
     Py_ssize_t size;
     struct ref_info info;
@@ -251,7 +262,14 @@ _dump_object_info(FILE *out, PyObject *c_obj)
         c_obj->ob_type->tp_traverse(c_obj, _dump_reference, &info);
     }
     fprintf(out, "]},\n");
-    if (c_obj->ob_type->tp_traverse != NULL) {
-        c_obj->ob_type->tp_traverse(c_obj, _dump_if_no_traverse, out);
+    if (c_obj->ob_type->tp_traverse != NULL && recurse != 0) {
+        if (recurse == 2) { /* Always dump one layer deeper */
+            c_obj->ob_type->tp_traverse(c_obj, _dump_child, out);
+        } else if (recurse == 1) {
+            /* strings and such aren't in gc.get_objects, so we need to dump
+             * them when they are referenced.
+             */
+            c_obj->ob_type->tp_traverse(c_obj, _dump_if_no_traverse, out);
+        }
     }
 }

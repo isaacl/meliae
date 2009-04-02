@@ -54,6 +54,9 @@ def dump_gc_objects(outf):
     if isinstance(outf, basestring):
         outf = open(outf, 'wb')
     outf.write("[\n")
+    # None isn't in gc.get_objects(), for some reason we've been having
+    # problems not traversing to find it.
+    _scanner.dump_object_info(outf, None)
     for obj in gc.get_objects():
         _scanner.dump_object_info(outf, obj)
     # We close with an empty object so that we can write valid JSON with

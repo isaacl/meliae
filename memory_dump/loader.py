@@ -68,7 +68,8 @@ class MemObject(object):
                   value=val.get('value', None),
                   name=val.get('name', None))
         if (obj.type_str == 'str'):
-            obj.value = str(obj.value)
+            if type(obj.value) is unicode:
+                obj.value = obj.value.encode('latin-1')
         return obj
 
 
@@ -116,3 +117,5 @@ def load(fname):
         if address in objs: # Skip duplicate objects
             continue
         objs[address] = MemObject.from_json_dict(obj)
+    _fill_total_size(objs)
+    return objs

@@ -27,13 +27,13 @@ class TestMemObject(tests.TestCase):
     def test_from_json_dict(self):
         mem = loader.MemObject.from_json_dict(
             dict(address=1024, type=u'str', size=10, refs=[], len=4,
-                value=u'abcd'))
+                value=u'abcd\xc7'))
         self.assertEqual(1024, mem.address)
         self.assertEqual('str', mem.type_str)
         self.assertEqual(10, mem.size)
         self.assertEqual([], mem.ref_list)
         self.assertEqual(4, mem.length)
-        self.assertEqual('abcd', mem.value)
+        self.assertEqual('abcd\xc7', mem.value)
         self.assertEqual(None, mem.name)
         self.assertEqual(None, mem.total_size)
 
