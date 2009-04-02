@@ -152,6 +152,20 @@ def _string_to_json(s):
     return ''.join(out)
 
 
+def _unicode_to_json(u):
+    out = ['"']
+    for c in u:
+        if c < u'\u001F' or c > u'\u007e':
+            out.append(r'\u%04x' % ord(c))
+        elif c in ur'\/"':
+            # Simple escape
+            out.append('\\' + str(c))
+        else:
+            out.append(str(c))
+    out.append('"')
+    return ''.join(out)
+
+
 class TestJSONString(tests.TestCase):
 
     def assertJSONString(self, exp, input):
@@ -169,6 +183,27 @@ class TestJSONString(tests.TestCase):
 
     def test_control_escapes(self):
         self.assertJSONString(r'"\u0000\u0001\u0002"', '\x00\x01\x02')
+
+
+class TestJSONUnicode(tests.TestCase):
+
+    def assertJSONUnicode(self, exp, input):
+        val = _unicode_to_json(input)
+        self.assertEqual(exp, val)
+        self.assertTrue(isinstance(val, str))
+
+    def test_empty(self):
+        self.assertJSONUnicode('""', u'')
+
+    def test_ascii_chars(self):
+        self.assertJSONUnicode('"abcdefg"', u'abcdefg')
+
+    def test_unicode_chars(self):
+        self.assertJSONUnicode(r'"\u0012\u00b5\u2030"', u'\x12\xb5\u2030')
+
+    def test_simple_escapes(self):
+        self.assertJSONUnicode(r'"\\x\/y\""', ur'\x/y"')
+
 
 
 # A pure python implementation of dump_object_info
@@ -192,6 +227,8 @@ def py_dump_json(obj):
     content.append(']')
     if isinstance(obj, str):
         content.append(', "value": %s' % (_string_to_json(obj[:100]),))
+    elif isinstance(obj, unicode):
+        content.append(', "value": %s' % (_unicode_to_json(obj[:100]),))
     content.append('}\n')
     return ''.join(content)
 
@@ -232,6 +269,14 @@ class TestPyDumpInfo(tests.TestCase):
             '{"address": %d, "type": "str", "size": %d, "refs": []'
             ', "value": "a string"}\n' % (id(mystr), _scanner.size_of(mystr)),
             mystr)
+
+    def test_unicode(self):
+        myu = u'a \xb5nicode'
+        self.assertDumpText(
+            '{"address": %d, "type": "unicode", "size": %d, "refs": []'
+            ', "value": "a \\u00b5nicode"}\n' % (
+                id(myu), _scanner.size_of(myu)),
+            myu)
 
     def test_obj(self):
         obj = object()
