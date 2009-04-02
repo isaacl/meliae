@@ -87,3 +87,9 @@ class TestIntSet(tests.TestCase):
         for i in xrange(10000):
             iset.add(i)
         self.assertEqual(10000, len(iset))
+
+    def test_discard(self):
+        # Not supported yet... KnownFailure
+
+    def test_remove(self):
+        # Not supported yet... KnownFailure
