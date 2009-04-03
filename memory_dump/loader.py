@@ -19,10 +19,28 @@
 Currently requires simplejson to parse.
 """
 
+import re
+
 try:
     import simplejson
 except ImportError:
     simplejson = None
+
+# This is the minimal regex that is guaranteed to match. In testing, it is
+# about 3x faster than using simplejson, it is just less generic.
+_object_re = re.compile(
+    r'\{"address": (?P<address>\d+)'
+    r', "type": "(?P<type>.*)"'
+    r', "size": (?P<size>\d+)'
+    r'(, "name": "(?P<name>.*)")?'
+    r'(, "len": (?P<len>\d+))?'
+    r'(, "value": "(?P<value>.*)")?'
+    r', "refs": \[(?P<refs>[^]]*)\]'
+    r'\}')
+
+_refs_re = re.compile(
+    r'(?P<ref>\d+)'
+    )
 
 
 class MemObject(object):
@@ -82,6 +100,33 @@ class MemObject(object):
             obj._intern_from_cache(temp_cache)
         return obj
 
+    @classmethod
+    def from_line(cls, line, temp_cache=None):
+        m = _object_re.match(line)
+        if not m:
+            raise RuntimeError('Failed to parse line: %r' % (line,))
+        (address, type_str, size, name, length, value,
+         refs) = m.group('address', 'type', 'size', 'name', 'len',
+                         'value', 'refs')
+        assert '\\' not in type_str
+        if name is not None:
+            assert '\\' not in name
+        if length is not None:
+            length = int(length)
+        obj = cls(address=int(address),
+                  type_str=type_str,
+                  size=int(size),
+                  ref_list=[int(val) for val in _refs_re.findall(refs)],
+                  length=length,
+                  value=value,
+                  name=name)
+        if (obj.type_str == 'str'):
+            if type(obj.value) is unicode:
+                obj.value = obj.value.encode('latin-1')
+        if temp_cache is not None:
+            obj._intern_from_cache(temp_cache)
+        return obj
+
 
 def _fill_total_size(objs):
     """Fill out the total_size record for objs."""
@@ -117,22 +162,32 @@ def _fill_total_size(objs):
                 stack.pop()
 
 
-def load(fname):
+def load(fname, using_json=False):
     f = open(fname, 'r')
     objs = {}
     temp_cache = {}
+    address_re = re.compile(
+        r'{"address": (?P<address>\d+)'
+        )
+    address = 1
     for line in open(fname):
         if line in ("[\n", "]\n"):
             continue
         if line.endswith(',\n'):
             line = line[:-2]
-        obj = simplejson.loads(line)
-        if not obj: # Skip an one empty object
+        m = address_re.match(line)
+        if not m:
             continue
-        address = obj['address']
+        address = int(m.group('address'))
         if address in objs: # Skip duplicate objects
             continue
-        memobj = MemObject.from_json_dict(obj, temp_cache=temp_cache)
+        if using_json:
+            obj = simplejson.loads(line)
+            if not obj: # Skip an one empty object
+                continue
+            memobj = MemObject.from_json_dict(obj, temp_cache=temp_cache)
+        else:
+            memobj = MemObject.from_line(line, temp_cache=temp_cache)
         objs[memobj.address] = memobj
     del temp_cache
     # _fill_total_size(objs)
