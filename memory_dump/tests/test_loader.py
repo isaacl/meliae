@@ -66,6 +66,6 @@ class TestObjManager(tests.TestCase):
         manager = loader.load(_example_dump, show_prog=False)
         manager.compute_referrers()
         objs = manager.objs
-        self.assertEqual((), objs[1234]._referrers)
-        self.assertEqual((1234,), objs[505264624]._referrers)
-        self.assertEqual((1234,), objs[23038064]._referrers)
+        self.assertEqual((), objs[1234].referrers)
+        self.assertEqual([1234], objs[505264624].referrers)
+        self.assertEqual([1234], objs[23038064].referrers)

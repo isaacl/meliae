@@ -114,7 +114,7 @@ class ObjManager(object):
                 ref = id_cache.setdefault(ref, ref)
                 referrers.setdefault(ref, []).append(address)
         for obj in self.objs.itervalues():
-            obj._referrers = tuple(referrers.get(obj.address, ()))
+            obj.referrers = referrers.get(obj.address, ())
 
 
 def load(source, using_json=False, show_prog=True):

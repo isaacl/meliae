@@ -32,7 +32,7 @@ class TestMemObject(tests.TestCase):
         self.assertEqual('int', mem.type_str)
         self.assertEqual(12, mem.size)
         self.assertTrue(isinstance(mem.size, int))
-        self.assertEqual([], mem.ref_list)
+        self.assertEqual((), mem.ref_list)
 
     def test_ref_list(self):
         mem = _loader.MemObject(1234, 'tuple', 12, [4567, 8901])

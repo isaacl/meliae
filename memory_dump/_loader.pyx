@@ -20,8 +20,42 @@ cdef extern from "Python.h":
     ctypedef unsigned long size_t
     ctypedef struct PyObject:
         pass
+    void *realloc(void *, size_t)
     void *malloc(size_t)
     void free(void *)
+
+
+cdef object _ref_list_to_list(long *ref_list):
+    """Convert the notation of [len, items, ...] into [items].
+
+    :param ref_list: A pointer to NULL, or to a list of longs. The list should
+        start with the count of items
+    """
+    cdef long i
+    # TODO: Always return a tuple, we already know the width, and this prevents
+    #       double malloc()
+
+    if ref_list == NULL:
+        return ()
+    refs = []
+    for i from 1 <= i <= ref_list[0]:
+        refs.append(ref_list[i])
+    return refs
+
+
+cdef long *_list_to_ref_list(object refs):
+    cdef long i, num_refs, *ref_list
+
+    num_refs = len(refs)
+    if num_refs == 0:
+        return NULL
+    ref_list = <long*>malloc(sizeof(long)*(num_refs+1))
+    ref_list[0] = num_refs
+    i = 1
+    for ref in refs:
+        ref_list[i] = ref
+        i = i + 1
+    return ref_list
 
 
 cdef class MemObject:
@@ -51,49 +85,56 @@ cdef class MemObject:
     cdef readonly long size
     cdef long *_ref_list # An array of addresses that this object
                          # referenced. May be NULL if len() == 0
-    cdef Py_ssize_t num_refs # Length of ref_list
+                         # If not null, the first item is the length of the
+                         # list
     cdef readonly int length # Object length (ob_size), aka len(object)
     cdef public object value    # May be None, a PyString or a PyInt
     cdef readonly object name     # Name of this object (only valid for
                                   # modules, etc)
-    cdef public object _referrers # Objects that refer to *this*
+    cdef long *_referrer_list # An array of addresses that refer to this,
+                              # if not null, the first item indicates the
+                              # length of the list
 
     def __init__(self, address, type_str, size, ref_list, length=None,
                  value=None, name=None):
-        cdef int i
         self.address = address
         self.type_str = type_str
         self.size = size
-        self.num_refs = len(ref_list)
-        if self.num_refs == 0:
-            self._ref_list = NULL
-        else:
-            self._ref_list = <long*>malloc(sizeof(long)*self.num_refs)
-            i = 0
-            for ref in ref_list:
-                self._ref_list[i] = ref
-                i = i + 1
+        self._ref_list = _list_to_ref_list(ref_list)
         if length is None:
             self.length = -1
         else:
             self.length = length
         self.value = value
         self.name = name
-        self._referrers = None
+        self._referrer_list = NULL
 
     property ref_list:
         """The list of objects referenced by this object."""
         def __get__(self):
-            cdef int i
-            refs = []
-            for i from 0 <= i < self.num_refs:
-                refs.append(self._ref_list[i])
-            return refs
+            return _ref_list_to_list(self._ref_list)
+
+    property referrers:
+        """The list of objects that reference this object.
+
+        Original set to None, can be computed on demand.
+        """
+        def __get__(self):
+            return _ref_list_to_list(self._referrer_list)
+
+        def __set__(self, value):
+            if self._referrer_list != NULL:
+                free(self._referrer_list)
+                self._referrer_list = NULL
+            self._referrer_list = _list_to_ref_list(value)
 
     def __dealloc__(self):
         if self._ref_list != NULL:
             free(self._ref_list)
             self._ref_list = NULL
+        if self._referrer_list != NULL:
+            free(self._referrer_list)
+            self._referrer_list = NULL
 
     def __repr__(self):
         if self.name is not None:
