@@ -50,5 +50,25 @@ def dump_gc_objects(outf, recurse_depth=1):
     """
     if isinstance(outf, basestring):
         outf = open(outf, 'wb')
+    # Dump out a few specific objects, so they don't get repeated forever
+    nodump = [None, True, False]
+    # In current versions of python, these are all pre-cached
+    nodump.extend(xrange(-5, 256))
+    nodump.extend([chr(c) for c in xrange(256)])
+    nodump.extend([t for t in types.__dict__.itervalues()
+                      if type(t) is types.TypeType])
+    nodump.extend([set, dict])
+    # Some very common interned strings
+    nodump.extend(['__doc__', 'self', 'operator', '__init__', 'codecs',
+                   '__new__', '__builtin__', 'error', 'len', 'errors'])
+    nodump.extend([BaseException, Exception, StandardError, ValueError])
+    for obj in nodump:
+        _scanner.dump_object_info(outf, obj, nodump=None, recurse_depth=0)
+    # This currently costs us ~16kB during dumping, but means we won't write
+    # out those objects multiple times in the log file.
+    # TODO: we might want to make nodump a variable-size dict, and add anything
+    #       with ob_refcnt > 1000 or so.
+    nodump = frozenset(nodump)
     for obj in gc.get_objects():
-        _scanner.dump_object_info(outf, obj, recurse_depth=recurse_depth)
+        _scanner.dump_object_info(outf, obj, nodump=nodump,
+                                  recurse_depth=recurse_depth)

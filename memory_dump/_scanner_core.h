@@ -37,7 +37,7 @@ Py_ssize_t _size_of(PyObject *c_obj);
 /**
  * Write the information about this object to the file.
  */
-void _dump_object_info(FILE *out, PyObject *c_obj, int recurse);
+void _dump_object_info(FILE *out, PyObject *c_obj, PyObject *nodump, int recurse);
 
 
 #endif // _SCANNER_CORE_H_

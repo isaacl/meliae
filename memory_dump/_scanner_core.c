@@ -25,6 +25,7 @@
 struct ref_info {
     FILE *out;
     int first;
+    PyObject *nodump;
 };
 
 Py_ssize_t
@@ -126,10 +127,10 @@ _dump_reference(PyObject *c_obj, void* val)
 int
 _dump_child(PyObject *c_obj, void *val)
 {
-    FILE *out;
-    out = (FILE *)val;
+    struct ref_info *info;
+    info = (struct ref_info *)val;
     // The caller has asked us to dump self, but no recursive children
-    _dump_object_info(out, c_obj, 0);
+    _dump_object_info(info->out, c_obj, info->nodump, 0);
     return 0;
 }
 
@@ -137,8 +138,8 @@ _dump_child(PyObject *c_obj, void *val)
 int
 _dump_if_no_traverse(PyObject *c_obj, void *val)
 {
-    FILE *out;
-    out = (FILE *)val;
+    struct ref_info *info;
+    info = (struct ref_info *)val;
     /* Objects without traverse are simple things without refs, and built-in
      * types have a traverse, but they won't be part of gc.get_objects().
      */
@@ -146,7 +147,7 @@ _dump_if_no_traverse(PyObject *c_obj, void *val)
         || (PyType_Check(c_obj)
             && !PyType_HasFeature((PyTypeObject*)c_obj, Py_TPFLAGS_HEAPTYPE)))
     {
-        _dump_object_info(out, c_obj, 0);
+        _dump_object_info(info->out, c_obj, info->nodump, 0);
     }
     // We know that it is safe to recurse here, because tp_traverse is NULL
     return 0;
@@ -225,12 +226,25 @@ _dump_unicode(FILE *out, PyObject *c_obj)
 
 
 void
-_dump_object_info(FILE *out, PyObject *c_obj, int recurse)
+_dump_object_info(FILE *out, PyObject *c_obj, PyObject *nodump, int recurse)
 {
     Py_ssize_t size;
     struct ref_info info;
+    int retval;
 
     info.out = out;
+    info.nodump = nodump; /* Stealing the reference, but not permanently */
+
+    if (nodump != Py_None && PyAnySet_Check(nodump)) {
+        retval = PySet_Contains(nodump, c_obj);
+        if (retval == 1) {
+            /* This object is part of the no-dump set, don't dump the object */
+            return;
+        } else if (retval == -1) {
+            /* An error was raised, but we don't care, ignore it */
+            PyErr_Clear();
+        }
+    }
 
     size = _size_of(c_obj);
     fprintf(out, "{\"address\": %ld, \"type\": ", (long)c_obj);
@@ -252,6 +266,8 @@ _dump_object_info(FILE *out, PyObject *c_obj, int recurse)
         fprintf(out, ", \"len\": %d", PyUnicode_GET_SIZE(c_obj));
         fprintf(out, ", \"value\": ");
         _dump_unicode(out, c_obj);
+    } else if (PyInt_CheckExact(c_obj)) {
+        fprintf(out, ", \"value\": %ld", PyInt_AS_LONG(c_obj));
     } else if (PyTuple_Check(c_obj)) {
         fprintf(out, ", \"len\": %d", PyTuple_GET_SIZE(c_obj));
     } else if (PyList_Check(c_obj)) {
@@ -269,12 +285,12 @@ _dump_object_info(FILE *out, PyObject *c_obj, int recurse)
     fprintf(out, "]}\n");
     if (c_obj->ob_type->tp_traverse != NULL && recurse != 0) {
         if (recurse == 2) { /* Always dump one layer deeper */
-            c_obj->ob_type->tp_traverse(c_obj, _dump_child, out);
+            c_obj->ob_type->tp_traverse(c_obj, _dump_child, &info);
         } else if (recurse == 1) {
             /* strings and such aren't in gc.get_objects, so we need to dump
              * them when they are referenced.
              */
-            c_obj->ob_type->tp_traverse(c_obj, _dump_if_no_traverse, out);
+            c_obj->ob_type->tp_traverse(c_obj, _dump_if_no_traverse, &info);
         }
     }
 }

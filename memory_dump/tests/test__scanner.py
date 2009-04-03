@@ -224,6 +224,8 @@ def _py_dump_json_obj(obj):
         content.append(', "value": %s' % (_string_to_json(obj[:100]),))
     elif isinstance(obj, unicode):
         content.append(', "value": %s' % (_unicode_to_json(obj[:100]),))
+    elif isinstance(obj, int):
+        content.append(', "value": %d' % (obj,))
     first = True
     content.append(', "refs": [')
     ref_strs = []
@@ -235,7 +237,10 @@ def _py_dump_json_obj(obj):
     return ''.join(content)
 
 
-def py_dump_object_info(obj):
+def py_dump_object_info(obj, nodump=None):
+    if nodump is not None:
+        if obj in nodump:
+            return ''
     obj_info = _py_dump_json_obj(obj)
     # Now we walk again, for certain types we dump them directly
     child_vals = []
@@ -244,7 +249,8 @@ def py_dump_object_info(obj):
             or ref is None
             or type(ref) is object):
             # These types have no traverse func, so we dump them right away
-            child_vals.append(_py_dump_json_obj(ref))
+            if nodump is None or ref not in nodump:
+                child_vals.append(_py_dump_json_obj(ref))
     return obj_info + ''.join(child_vals)
 
 
@@ -295,15 +301,15 @@ class TestPyDumpJSONObj(tests.TestCase):
 class TestDumpInfo(tests.TestCase):
     """dump_object_info should give the same result at py_dump_object_info"""
 
-    def assertDumpInfo(self, obj):
+    def assertDumpInfo(self, obj, nodump=None):
         t = tempfile.TemporaryFile(prefix='memory_dump-')
         # On some platforms TemporaryFile returns a wrapper object with 'file'
         # being the real object, on others, the returned object *is* the real
         # file object
         t_file = getattr(t, 'file', t)
-        _scanner.dump_object_info(t_file, obj)
+        _scanner.dump_object_info(t_file, obj, nodump=nodump)
         t.seek(0)
-        self.assertEqual(py_dump_object_info(obj), t.read())
+        self.assertEqual(py_dump_object_info(obj, nodump=nodump), t.read())
 
     def test_dump_int(self):
         self.assertDumpInfo(1)
@@ -364,3 +370,9 @@ class TestDumpInfo(tests.TestCase):
 
     def test_long_unicode(self):
         self.assertDumpInfo(u'abcd'*1000)
+
+    def test_nodump(self):
+        self.assertDumpInfo(None, nodump=set([None]))
+
+    def test_ref_nodump(self):
+        self.assertDumpInfo((None, None), nodump=set([None]))
