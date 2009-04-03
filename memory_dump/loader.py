@@ -19,7 +19,9 @@
 Currently requires simplejson to parse.
 """
 
+import os
 import re
+import sys
 
 try:
     import simplejson
@@ -162,15 +164,24 @@ def _fill_total_size(objs):
                 stack.pop()
 
 
-def load(fname, using_json=False):
+def load(fname, using_json=False, show_prog=True, use_cache=True):
     f = open(fname, 'r')
     objs = {}
-    temp_cache = {}
+    if use_cache:
+        temp_cache = {}
+    else:
+        temp_cache = None
     address_re = re.compile(
         r'{"address": (?P<address>\d+)'
         )
-    address = 1
-    for line in open(fname):
+    bytes_read = count = 0
+    last = 0
+    input = open(fname)
+    input_size = os.fstat(input.fileno()).st_size
+    input_mb = input_size / 1024. / 1024.
+
+    for line_num, line in enumerate(input):
+        bytes_read += len(line)
         if line in ("[\n", "]\n"):
             continue
         if line.endswith(',\n'):
@@ -189,6 +200,12 @@ def load(fname, using_json=False):
         else:
             memobj = MemObject.from_line(line, temp_cache=temp_cache)
         objs[memobj.address] = memobj
+        if show_prog and (line_num - last > 5000):
+            last = line_num
+            mb_read = bytes_read / 1024. / 1024
+            sys.stdout.write(
+                'loading... line %d, %d objs, %5.1f / %5.1f MiB read\r'
+                % (line_num, len(objs), mb_read, input_mb))
     del temp_cache
     # _fill_total_size(objs)
     return objs
