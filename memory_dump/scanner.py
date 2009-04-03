@@ -37,7 +37,8 @@ def dump_all_referenced(outf, obj):
         if id_next in seen:
             continue
         seen.add(id_next)
-        _scanner.dump_object_info(outf, next)
+        # We will recurse here, so tell dump_object_info to not recurse
+        _scanner.dump_object_info(outf, next, recurse_depth=0)
         for ref in gc.get_referents(next):
             if id(ref) not in seen:
                 pending.append(ref)

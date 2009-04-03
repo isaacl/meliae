@@ -38,7 +38,7 @@ class TestDumpAllReferenced(tests.TestCase):
         t.seek(0)
         # We don't care if the same entries are printed multiple times, just
         # that they are all correct
-        lines = set(t.readlines())
+        lines = t.readlines()
         # py_dump_object_info will create a string that covers multpile lines,
         # so we need to split it back into 1-line-per-record
         ref_lines = [test__scanner.py_dump_object_info(ref_obj)
