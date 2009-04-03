@@ -106,9 +106,13 @@ class ObjManager(object):
     def compute_referrers(self):
         """For each object, figure out who is referencing it."""
         referrers = {} # From address => [referred from]
+        id_cache = {}
         for obj in self.objs.itervalues():
+            address = obj.address
+            address = id_cache.setdefault(address, address)
             for ref in obj.ref_list:
-                referrers.setdefault(ref, []).append(obj.address)
+                ref = id_cache.setdefault(ref, ref)
+                referrers.setdefault(ref, []).append(address)
         for obj in self.objs.itervalues():
             obj._referrers = tuple(referrers.get(obj.address, ()))
 
