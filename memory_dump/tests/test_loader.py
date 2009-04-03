@@ -17,54 +17,18 @@
 """Read back in a dump file and process it"""
 
 from memory_dump import (
+    _loader,
     loader,
     tests,
     )
 
 
-class TestMemObject(tests.TestCase):
+class TestLoad(tests.TestCase):
 
-    def test_from_json_dict(self):
-        mem = loader.MemObject.from_json_dict(
-            dict(address=1024, type=u'str', size=10, refs=[], len=4,
-                value=u'abcd\xc7'))
-        self.assertEqual(1024, mem.address)
-        self.assertEqual('str', mem.type_str)
-        self.assertEqual(10, mem.size)
-        self.assertEqual([], mem.ref_list)
-        self.assertEqual(4, mem.length)
-        self.assertEqual('abcd\xc7', mem.value)
-        self.assertEqual(None, mem.name)
-        self.assertEqual(None, mem.total_size)
-
-    def test__fill_total_size(self):
-        objs = {
-            1: loader.MemObject(1, 'type', 10, []),
-            2: loader.MemObject(2, 'type', 20, [1]),
-        }
-        loader._fill_total_size(objs)
-        self.assertEqual(10, objs[1].total_size)
-        self.assertEqual(30, objs[2].total_size)
-
-    def test__fill_total_size_cycle(self):
-        objs = {
-            1: loader.MemObject(1, 'type', 10, [2]),
-            2: loader.MemObject(2, 'type', 20, [1]),
-        }
-        loader._fill_total_size(objs)
-        # self.assertEqual(30, objs[1].total_size)
-        # self.assertEqual(30, objs[2].total_size)
-
-    def test__fill_total_size_wide_cycle(self):
-        objs = {
-            1: loader.MemObject(1, 'type', 10, [5]),
-            2: loader.MemObject(2, 'type', 20, [1]),
-            3: loader.MemObject(3, 'type', 30, [2]),
-            4: loader.MemObject(4, 'type', 40, [3]),
-            5: loader.MemObject(5, 'type', 50, [4]),
-            6: loader.MemObject(6, 'type', 5, [1]),
-        }
-        loader._fill_total_size(objs)
-        # self.assertEqual(150, objs[1].total_size)
-        # self.assertEqual(150, objs[2].total_size)
-        self.assertEqual(155, objs[6].total_size)
+    def test_load_one(self):
+        objs = loader.load([
+            '{"address": 1234, "type": "int", "size": 12, "value": 10'
+            ', "refs": []}'], show_prog=False)
+        self.assertEqual([1234], objs.keys())
+        obj = objs[1234]
+        self.assertTrue(isinstance(obj, _loader.MemObject))

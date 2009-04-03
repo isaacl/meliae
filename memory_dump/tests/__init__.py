@@ -34,6 +34,7 @@ def run_suite(verbose=False):
 def test_suite():
     module_names = [
         'test__intset',
+        'test__loader',
         'test__scanner',
         'test_loader',
         'test_scanner',
