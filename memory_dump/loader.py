@@ -94,6 +94,25 @@ def _from_line(cls, line, temp_cache=None):
     return obj
 
 
+class ObjManager(object):
+    """Manage the collection of MemObjects.
+
+    This is the interface for doing queries, etc.
+    """
+
+    def __init__(self, objs):
+        self.objs = objs
+
+    def compute_referrers(self):
+        """For each object, figure out who is referencing it."""
+        referrers = {} # From address => [referred from]
+        for obj in self.objs.itervalues():
+            for ref in obj.ref_list:
+                referrers.setdefault(ref, []).append(obj.address)
+        for obj in self.objs.itervalues():
+            obj._referrers = tuple(referrers.get(obj.address, ()))
+
+
 def load(source, using_json=False, show_prog=True):
     """Load objects from the given source.
 
@@ -144,4 +163,4 @@ def load(source, using_json=False, show_prog=True):
             'loaded line %d, %d objs, %5.1f / %5.1f MiB read        \n'
             % (line_num, len(objs), mb_read, input_mb))
     # _fill_total_size(objs)
-    return objs
+    return ObjManager(objs)

@@ -56,6 +56,7 @@ cdef class MemObject:
     cdef public object value    # May be None, a PyString or a PyInt
     cdef readonly object name     # Name of this object (only valid for
                                   # modules, etc)
+    cdef public object _referrers # Objects that refer to *this*
 
     def __init__(self, address, type_str, size, ref_list, length=None,
                  value=None, name=None):
@@ -78,6 +79,7 @@ cdef class MemObject:
             self.length = length
         self.value = value
         self.name = name
+        self._referrers = None
 
     property ref_list:
         """The list of objects referenced by this object."""
