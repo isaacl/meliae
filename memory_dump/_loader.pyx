@@ -95,6 +95,9 @@ cdef class MemObject:
                               # if not null, the first item indicates the
                               # length of the list
 
+    cdef public unsigned long total_size # Size of everything referenced from
+                                         # this object
+
     def __init__(self, address, type_str, size, ref_list, length=None,
                  value=None, name=None):
         self.address = address
@@ -108,6 +111,7 @@ cdef class MemObject:
         self.value = value
         self.name = name
         self._referrer_list = NULL
+        self.total_size = 0 # uncomputed yet
 
     property ref_list:
         """The list of objects referenced by this object."""

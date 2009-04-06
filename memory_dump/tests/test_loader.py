@@ -70,3 +70,15 @@ class TestObjManager(tests.TestCase):
         self.assertEqual([2, 3, 7], objs[5].referrers)
         self.assertEqual([2], objs[6].referrers)
         self.assertEqual([2], objs[7].referrers)
+
+    def test_compute_total_size(self):
+        manager = loader.load(_example_dump, show_prog=False)
+        manager.compute_total_size()
+        objs = manager.objs
+        self.assertEqual(261, objs[1].total_size)
+        self.assertEqual(197, objs[2].total_size)
+        self.assertEqual(68, objs[3].total_size)
+        self.assertEqual(12, objs[4].total_size)
+        self.assertEqual(12, objs[5].total_size)
+        self.assertEqual(29, objs[6].total_size)
+        self.assertEqual(44, objs[7].total_size)

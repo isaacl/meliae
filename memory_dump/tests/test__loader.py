@@ -33,6 +33,7 @@ class TestMemObject(tests.TestCase):
         self.assertEqual(12, mem.size)
         self.assertTrue(isinstance(mem.size, int))
         self.assertEqual((), mem.ref_list)
+        self.assertEqual(0, mem.total_size)
 
     def test_ref_list(self):
         mem = _loader.MemObject(1234, 'tuple', 20, [4567, 8901])
@@ -52,6 +53,12 @@ class TestMemObject(tests.TestCase):
         mem.referrers = [1, 2, 3]
         self.assertEqual(3, mem.num_referrers)
         self.assertEqual([1, 2, 3], mem.referrers)
+
+    def test_total_size(self):
+        mem = _loader.MemObject(1234, 'tuple', 20, [4567, 8901])
+        self.assertEqual(0, mem.total_size)
+        mem.total_size = 100
+        self.assertEqual(100, mem.total_size)
 
     def test__repr__(self):
         mem = _loader.MemObject(0x1234, 'tuple', 12, [0x4567, 0x89ab])

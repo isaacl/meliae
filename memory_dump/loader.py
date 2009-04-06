@@ -30,7 +30,10 @@ try:
 except ImportError:
     simplejson = None
 
-from memory_dump import _loader
+from memory_dump import (
+    _intset,
+    _loader,
+    )
 
 # This is the minimal regex that is guaranteed to match. In testing, it is
 # about 3x faster than using simplejson, it is just less generic.
@@ -197,6 +200,36 @@ class ObjManager(object):
                 referrers.setdefault(ref, []).append(address)
         for obj in self.objs.itervalues():
             obj.referrers = referrers.get(obj.address, ())
+
+    def compute_total_size(self):
+        """This computes the total bytes referenced from this object."""
+        # Unfortunately, this is an N^2 operation :(. The problem is that
+        # a.total_size + b.total_size != c.total_size (if c references a & b).
+        # This is because a & b may refer to common objects. Consider something
+        # like:
+        #   A   _
+        #  / \ / \
+        # B   C  |
+        #  \ /  /
+        #   D--'
+        # D & C participate in a refcycle, and B has an alternative path to D.
+        # You certainly don't want to count D 2 times when computing the total
+        # size of A. Also, how do you give the relative contribution of B vs C
+        # in this graph?
+        for obj in self.objs.itervalues():
+            pending_descendents = list(obj.ref_list)
+            seen = _intset.IntSet()
+            seen.add(obj.address)
+            total_size = obj.size
+            while pending_descendents:
+                next = pending_descendents.pop()
+                if next in seen:
+                    continue
+                seen.add(next)
+                next_obj = self.objs[next]
+                total_size += next_obj.size
+                pending_descendents.extend(next_obj.ref_list)
+            obj.total_size = total_size
 
     def summarize(self):
         summary = _ObjSummary()
