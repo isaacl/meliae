@@ -88,6 +88,16 @@ class TestIntSet(tests.TestCase):
             iset.add(i)
         self.assertEqual(10000, len(iset))
 
+    def test_from_list(self):
+        iset = _intset.IntSet([-1, 0, 1, 2, 3, 4])
+        self.assertTrue(-1 in iset)
+        self.assertTrue(0 in iset)
+        self.assertTrue(1 in iset)
+        self.assertTrue(2 in iset)
+        self.assertTrue(3 in iset)
+        self.assertTrue(4 in iset)
+        self.assertFalse(5 in iset)
+
     def test_discard(self):
         # Not supported yet... KnownFailure
         pass
@@ -95,3 +105,7 @@ class TestIntSet(tests.TestCase):
     def test_remove(self):
         # Not supported yet... KnownFailure
         pass
+
+
+class TestIDSet(TestIntSet):
+    pass

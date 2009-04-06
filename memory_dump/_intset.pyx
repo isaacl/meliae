@@ -47,14 +47,17 @@ cdef class IntSet:
     cdef Py_ssize_t _mask
     cdef int_type *_array
     cdef int _has_singleton
-    
-    def __init__(self):
+
+    def __init__(self, values=None):
         self._count = 0
         self._mask = 0
         self._array = NULL
         # The only value we can't properly handle presence/absence in the array
         # is _singleton, so we specially flag that case
         self._has_singleton = 0
+        if values:
+            for value in values:
+                self._add(value)
 
     def __dealloc__(self):
         if self._array != NULL:
@@ -129,9 +132,9 @@ cdef class IntSet:
         old_count = self._count
         # Current size * 2
         if old_array == NULL: # Nothing currently allocated
-            self._mask = 127
-            self._array = <int_type*>malloc(sizeof(int_type) * 128)
-            memset(self._array, _singleton1, sizeof(int_type) * 128)
+            self._mask = 255
+            self._array = <int_type*>malloc(sizeof(int_type) * 256)
+            memset(self._array, _singleton1, sizeof(int_type) * 256)
             return
         new_size = (old_mask + 1) * 2
         # Replace 'in place', grow to a new array, and add items back in
@@ -180,3 +183,54 @@ cdef class IntSet:
 
     def add(self, val):
         self._add(val)
+
+
+cdef class IDSet(IntSet):
+    """Track a set of object ids (addresses).
+
+    This only differs from IntSet in how the integers are hashed. Object
+    addresses tend to be aligned on 16-byte boundaries (occasionally 8-byte,
+    and even more rarely on 4-byte), as such the standard hash lookup has more
+    collisions than desired.
+    """
+
+    cdef int_type *_lookup(self, int_type c_val) except NULL:
+        """Taken from the set() algorithm."""
+        cdef size_t offset, perturb
+        cdef int_type *entry, *freeslot
+        cdef int_type internal_val
+
+        if self._array == NULL:
+            raise RuntimeError('cannot _lookup without _array allocated.')
+        # For addresses, we shift the last 4 bits into the beginning of the
+        # value
+        internal_val = (c_val >> 4) | (c_val << (sizeof(int_type)*8 - 4))
+        offset = internal_val & self._mask
+        entry = self._array + offset
+        if entry[0] == c_val or entry[0] == _singleton1:
+            return entry
+        if entry[0] == _singleton2:
+            freeslot = entry
+        else:
+            freeslot = NULL
+
+        perturb = c_val
+        while True:
+            offset = (offset << 2) + offset + perturb + 1
+            entry = self._array + (offset & self._mask)
+            if (entry[0] == _singleton1):
+                # We converged on an empty slot, without finding entry == c_val
+                # If we previously found a freeslot, return it, else return
+                # this entry
+                if freeslot == NULL:
+                    return entry
+                else:
+                    return freeslot
+            elif (entry[0] == c_val):
+                # Exact match
+                return entry
+            elif (entry[0] == _singleton2 and freeslot == NULL):
+                # We found the first match that was a 'dummy' entry
+                freeslot = entry
+            perturb = perturb >> 5 # PERTURB_SHIFT
+
