@@ -62,11 +62,11 @@ def dump_gc_objects(outf, recurse_depth=1):
                       if type(t) is types.TypeType])
     nodump.extend([set, dict])
     # Some very common interned strings
-    nodump.extend(['__doc__', 'self', 'operator', '__init__', 'codecs',
+    nodump.extend(('__doc__', 'self', 'operator', '__init__', 'codecs',
                    '__new__', '__builtin__', '__builtins__', 'error', 'len',
                    'errors', 'keys', 'None', '__module__', 'file', 'name', '',
-                   'sys', 'True', 'False'])
-    nodump.extend([BaseException, Exception, StandardError, ValueError])
+                   'sys', 'True', 'False'))
+    nodump.extend((BaseException, Exception, StandardError, ValueError))
     for obj in nodump:
         _scanner.dump_object_info(outf, obj, nodump=None, recurse_depth=0)
     # Avoid dumping the all_objs list and this function as well. This helps
