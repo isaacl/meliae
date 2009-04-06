@@ -71,7 +71,6 @@ def dump_gc_objects(outf, recurse_depth=1):
         _scanner.dump_object_info(outf, obj, nodump=None, recurse_depth=0)
     # Avoid dumping the all_objs list and this function as well. This helps
     # avoid getting a 'reference everything in existence' problem.
-    nodump.append(all_objs)
     nodump.append(dump_gc_objects)
     # This currently costs us ~16kB during dumping, but means we won't write
     # out those objects multiple times in the log file.
