@@ -32,8 +32,8 @@ cdef int_type _singleton1, _singleton2
 # _singleton1 is the 'no value present' value
 # _singleton2 is the 'value deleted' value, which has us keep searching
 # collisions after the fact
-_singleton1 = <int_type> -1;
-_singleton2 = <int_type> -2;
+_singleton1 = <int_type> 0;
+_singleton2 = <int_type> -1;
 
 
 cdef class IntSet:
@@ -46,14 +46,15 @@ cdef class IntSet:
     cdef Py_ssize_t _count
     cdef Py_ssize_t _mask
     cdef int_type *_array
-    cdef int _has_singleton
+    cdef readonly int _has_singleton
 
     def __init__(self, values=None):
         self._count = 0
         self._mask = 0
         self._array = NULL
-        # The only value we can't properly handle presence/absence in the array
-        # is _singleton, so we specially flag that case
+        # This is a separate bit mask of singletons that we have seen
+        # There are 2, the one which indicates no value, and the one that
+        # indicates 'dummy', aka removed value
         self._has_singleton = 0
         if values:
             for value in values:
@@ -65,6 +66,16 @@ cdef class IntSet:
 
     def __len__(self):
         return self._count
+
+    def _peek_array(self):
+        cdef Py_ssize_t i, size
+        if self._array == NULL:
+            return None
+        result = []
+        size = self._mask + 1
+        for i from 0 <= i < size:
+            result.append(self._array[i])
+        return result
 
     cdef int_type *_lookup(self, int_type c_val) except NULL:
         """Taken from the set() algorithm."""
@@ -122,7 +133,7 @@ cdef class IntSet:
             return True
         return False
 
-    cdef _grow(self):
+    cdef int _grow(self) except -1:
         cdef int i
         cdef Py_ssize_t old_mask, new_size, old_count
         cdef int_type *old_array, val
@@ -135,7 +146,7 @@ cdef class IntSet:
             self._mask = 255
             self._array = <int_type*>malloc(sizeof(int_type) * 256)
             memset(self._array, _singleton1, sizeof(int_type) * 256)
-            return
+            return 0
         new_size = (old_mask + 1) * 2
         # Replace 'in place', grow to a new array, and add items back in
         # Note that if it weren't for collisions, we could actually 'realloc()'
@@ -149,37 +160,46 @@ cdef class IntSet:
             val = old_array[i]
             if val != _singleton1 and val != _singleton2:
                 self._add(val)
+        if self._has_singleton & 0x01:
+            self._count = self._count + 1
+        if self._has_singleton & 0x02:
+            self._count = self._count + 1
+        if self._count != old_count:
+            raise RuntimeError('After resizing array from %d => %d'
+                ' the count of items changed %d => %d'
+                % (old_mask + 1, new_size, old_count, self._count))
         assert self._count == old_count
         free(old_array)
 
-    cdef void _add(self, int_type c_val):
+    cdef int _add(self, int_type c_val) except -1:
         cdef int_type *entry
         if c_val == _singleton1:
             if self._has_singleton & 0x01:
-                return
+                return 0
             self._has_singleton = self._has_singleton | 0x01
             self._count = self._count + 1
-            return
+            return 1
         elif c_val == _singleton2:
             if self._has_singleton & 0x02:
                 # Already had it, no-op
-                return
+                return 0
             self._has_singleton = self._has_singleton | 0x02
             self._count = self._count + 1
-            return
+            return 1
         if self._array == NULL or self._count * 4 > self._mask:
             self._grow()
         entry = self._lookup(c_val)
         if entry[0] == c_val:
             # We already had it, no-op
-            return
+            return 0
         if entry[0] == _singleton1 or entry[0] == _singleton2:
             # No value stored at this location
             entry[0] = c_val
             self._count = self._count + 1
-            return
-        assert False, ("self._lookup returned something which didn't"
-                       " match %d, %d" % (c_val, entry[0]))
+            return 1
+        raise RuntimeError("Calling self._lookup(%x) returned %x. However"
+            " that is not the value or one of the singletons."
+            % (c_val, entry[0]))
 
     def add(self, val):
         self._add(val)

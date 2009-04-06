@@ -84,9 +84,9 @@ class TestIntSet(tests.TestCase):
 
     def test_add_and_grow(self):
         iset = _intset.IntSet()
-        for i in xrange(10000):
+        for i in xrange(-5, 10000):
             iset.add(i)
-        self.assertEqual(10000, len(iset))
+        self.assertEqual(10005, len(iset))
 
     def test_from_list(self):
         iset = _intset.IntSet([-1, 0, 1, 2, 3, 4])
