@@ -240,13 +240,21 @@ def _py_dump_json_obj(obj):
 
 def py_dump_object_info(obj, nodump=None):
     if nodump is not None:
-        if obj in nodump:
+        if obj is nodump:
             return ''
+        try:
+            if obj in nodump:
+                return ''
+        except TypeError:
+            # This is probably an 'unhashable' object, which means it can't be
+            # put into a set, and thus we are sure it isn't in the 'nodump'
+            # set.
+            pass
     obj_info = _py_dump_json_obj(obj)
     # Now we walk again, for certain types we dump them directly
     child_vals = []
     for ref in gc.get_referents(obj):
-        if (isinstance(ref, (str, unicode, types.CodeType))
+        if (isinstance(ref, (str, unicode, int, types.CodeType))
             or ref is None
             or type(ref) is object):
             # These types have no traverse func, so we dump them right away
@@ -377,6 +385,11 @@ class TestDumpInfo(tests.TestCase):
 
     def test_ref_nodump(self):
         self.assertDumpInfo((None, None), nodump=set([None]))
+
+    def test_nodump_the_nodump(self):
+        nodump = set([None, 1])
+        t = (20, nodump)
+        self.assertDumpInfo(t, nodump=nodump)
 
     def test_function(self):
         def myfunction():

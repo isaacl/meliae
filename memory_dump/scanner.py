@@ -51,6 +51,8 @@ def dump_gc_objects(outf, recurse_depth=1):
     """
     if isinstance(outf, basestring):
         outf = open(outf, 'wb')
+    # Get the list of everything before we start building new objects
+    all_objs = gc.get_objects()
     # Dump out a few specific objects, so they don't get repeated forever
     nodump = [None, True, False]
     # In current versions of python, these are all pre-cached
@@ -67,11 +69,15 @@ def dump_gc_objects(outf, recurse_depth=1):
     nodump.extend([BaseException, Exception, StandardError, ValueError])
     for obj in nodump:
         _scanner.dump_object_info(outf, obj, nodump=None, recurse_depth=0)
+    # Avoid dumping the all_objs list and this function as well. This helps
+    # avoid getting a 'reference everything in existence' problem.
+    nodump.append(all_objs)
+    nodump.append(dump_gc_objects)
     # This currently costs us ~16kB during dumping, but means we won't write
     # out those objects multiple times in the log file.
     # TODO: we might want to make nodump a variable-size dict, and add anything
     #       with ob_refcnt > 1000 or so.
     nodump = frozenset(nodump)
-    for obj in gc.get_objects():
+    for obj in all_objs:
         _scanner.dump_object_info(outf, obj, nodump=nodump,
                                   recurse_depth=recurse_depth)

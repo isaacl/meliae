@@ -236,6 +236,10 @@ _dump_object_info(FILE *out, PyObject *c_obj, PyObject *nodump, int recurse)
     info.nodump = nodump; /* Stealing the reference, but not permanently */
 
     if (nodump != Py_None && PyAnySet_Check(nodump)) {
+        if (c_obj == nodump) {
+            /* Don't dump the 'nodump' set. */
+            return;
+        }
         retval = PySet_Contains(nodump, c_obj);
         if (retval == 1) {
             /* This object is part of the no-dump set, don't dump the object */
