@@ -192,7 +192,11 @@ class ObjManager(object):
         """For each object, figure out who is referencing it."""
         referrers = {} # From address => [referred from]
         id_cache = {}
-        for obj in self.objs.itervalues():
+        total = len(self.objs)
+        for idx, obj in enumerate(self.objs.itervalues()):
+            # if idx & 0x1ff == 0:
+            #     sys.stderr.write('compute referrers %8d / %8d        \r'
+            #                      % (idx, total))
             address = obj.address
             address = id_cache.setdefault(address, address)
             for ref in obj.ref_list:
@@ -216,7 +220,11 @@ class ObjManager(object):
         # You certainly don't want to count D 2 times when computing the total
         # size of A. Also, how do you give the relative contribution of B vs C
         # in this graph?
-        for obj in self.objs.itervalues():
+        total = len(self.objs)
+        for idx, obj in enumerate(self.objs.itervalues()):
+            # if idx & 0x1ff == 0:
+            #     sys.stderr.write('compute size %8d / %8d        \r'
+            #                      % (idx, total))
             pending_descendents = list(obj.ref_list)
             seen = _intset.IDSet()
             seen.add(obj.address)
@@ -286,12 +294,12 @@ def load(source, using_json=False, show_prog=True):
             last = line_num
             mb_read = bytes_read / 1024. / 1024
             tdelta = time.time() - tstart
-            sys.stdout.write(
+            sys.stderr.write(
                 'loading... line %d, %d objs, %5.1f / %5.1f MiB read in %.1fs\r'
                 % (line_num, len(objs), mb_read, input_mb, tdelta))
     if show_prog:
         tdelta = time.time() - tstart
-        sys.stdout.write(
+        sys.stderr.write(
             'loaded line %d, %d objs, %5.1f / %5.1f MiB read in %.1fs        \n'
             % (line_num, len(objs), mb_read, input_mb, tdelta))
     # _fill_total_size(objs)

@@ -18,6 +18,7 @@
 
 import gc
 import tempfile
+import types
 
 from memory_dump import (
     _scanner,
@@ -245,7 +246,7 @@ def py_dump_object_info(obj, nodump=None):
     # Now we walk again, for certain types we dump them directly
     child_vals = []
     for ref in gc.get_referents(obj):
-        if (isinstance(ref, (str, unicode))
+        if (isinstance(ref, (str, unicode, types.CodeType))
             or ref is None
             or type(ref) is object):
             # These types have no traverse func, so we dump them right away
@@ -376,3 +377,8 @@ class TestDumpInfo(tests.TestCase):
 
     def test_ref_nodump(self):
         self.assertDumpInfo((None, None), nodump=set([None]))
+
+    def test_function(self):
+        def myfunction():
+            pass
+        self.assertDumpInfo(myfunction)
