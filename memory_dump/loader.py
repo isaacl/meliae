@@ -237,6 +237,11 @@ class ObjManager(object):
                 next_obj = self.objs.get(next, None)
                 if next_obj is None:
                     continue
+                # type and frame types tend to cause us to recurse into
+                # everything. So for now, when we encounter them... punt
+                if next_obj.type_str in ('type', 'frame'):
+                    total_size = 1
+                    break
                 total_size += next_obj.size
                 pending_descendents.extend(next_obj.ref_list)
             obj.total_size = total_size
