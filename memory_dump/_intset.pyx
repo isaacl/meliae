@@ -135,10 +135,11 @@ cdef class IntSet:
 
     cdef int _grow(self) except -1:
         cdef int i
-        cdef Py_ssize_t old_mask, new_size, old_count
+        cdef Py_ssize_t old_mask, old_size, new_size, old_count
         cdef int_type *old_array, val
 
         old_mask = self._mask
+        old_size = old_mask + 1
         old_array = self._array
         old_count = self._count
         # Current size * 2
@@ -147,7 +148,7 @@ cdef class IntSet:
             self._array = <int_type*>malloc(sizeof(int_type) * 256)
             memset(self._array, _singleton1, sizeof(int_type) * 256)
             return 0
-        new_size = (old_mask + 1) * 2
+        new_size = old_size * 2
         # Replace 'in place', grow to a new array, and add items back in
         # Note that if it weren't for collisions, we could actually 'realloc()'
         # and insert backwards. Since expanding mask means something will only
@@ -156,19 +157,18 @@ cdef class IntSet:
         memset(self._array, _singleton1, sizeof(int_type) * new_size)
         self._mask = new_size - 1
         self._count = 0
-        for i from 0 <= i < old_mask:
-            val = old_array[i]
-            if val != _singleton1 and val != _singleton2:
-                self._add(val)
         if self._has_singleton & 0x01:
             self._count = self._count + 1
         if self._has_singleton & 0x02:
             self._count = self._count + 1
+        for i from 0 <= i < old_size:
+            val = old_array[i]
+            if val != _singleton1 and val != _singleton2:
+                self._add(val)
         if self._count != old_count:
             raise RuntimeError('After resizing array from %d => %d'
                 ' the count of items changed %d => %d'
-                % (old_mask + 1, new_size, old_count, self._count))
-        assert self._count == old_count
+                % (old_size, new_size, old_count, self._count))
         free(old_array)
 
     cdef int _add(self, int_type c_val) except -1:
@@ -224,7 +224,8 @@ cdef class IDSet(IntSet):
             raise RuntimeError('cannot _lookup without _array allocated.')
         # For addresses, we shift the last 4 bits into the beginning of the
         # value
-        internal_val = (c_val >> 4) | (c_val << (sizeof(int_type)*8 - 4))
+        internal_val = ((c_val & 0xf) << (sizeof(int_type)*8 - 4))
+        internal_val = internal_val | (c_val >> 4)
         offset = internal_val & self._mask
         entry = self._array + offset
         if entry[0] == c_val or entry[0] == _singleton1:

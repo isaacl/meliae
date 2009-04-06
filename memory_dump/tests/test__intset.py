@@ -24,24 +24,26 @@ from memory_dump import (
 
 class TestIntSet(tests.TestCase):
 
+    _set_type = _intset.IntSet
+
     def test__init__(self):
-        s = _intset.IntSet()
+        s = self._set_type()
 
     def test__len__(self):
-        self.assertEqual(0, len(_intset.IntSet()))
+        self.assertEqual(0, len(self._set_type()))
 
     def test__contains__(self):
-        iset = _intset.IntSet()
+        iset = self._set_type()
         self.assertFalse(0 in iset)
 
     def test__contains__not_int(self):
-        iset = _intset.IntSet()
+        iset = self._set_type()
         def test_contain():
             return 'a' in iset
         self.assertRaises(TypeError, test_contain)
 
     def test_add_singletons(self):
-        iset = _intset.IntSet()
+        iset = self._set_type()
         iset.add(-1)
         self.assertTrue(-1 in iset)
         self.assertEqual(1, len(iset))
@@ -50,11 +52,11 @@ class TestIntSet(tests.TestCase):
         self.assertEqual(2, len(iset))
 
     def test_add_not_int(self):
-        iset = _intset.IntSet()
+        iset = self._set_type()
         self.assertRaises(TypeError, iset.add, 'foo')
 
     def test_add_general(self):
-        iset = _intset.IntSet()
+        iset = self._set_type()
         self.assertEqual(0, len(iset))
         self.assertFalse(1 in iset)
         self.assertFalse(2 in iset)
@@ -83,13 +85,13 @@ class TestIntSet(tests.TestCase):
         self.assertFalse(130 in iset)
 
     def test_add_and_grow(self):
-        iset = _intset.IntSet()
+        iset = self._set_type()
         for i in xrange(-5, 10000):
             iset.add(i)
         self.assertEqual(10005, len(iset))
 
     def test_from_list(self):
-        iset = _intset.IntSet([-1, 0, 1, 2, 3, 4])
+        iset = self._set_type([-1, 0, 1, 2, 3, 4])
         self.assertTrue(-1 in iset)
         self.assertTrue(0 in iset)
         self.assertTrue(1 in iset)
@@ -108,4 +110,5 @@ class TestIntSet(tests.TestCase):
 
 
 class TestIDSet(TestIntSet):
-    pass
+
+    _set_type = _intset.IDSet
