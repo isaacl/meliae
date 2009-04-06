@@ -226,7 +226,9 @@ class ObjManager(object):
                 if next in seen:
                     continue
                 seen.add(next)
-                next_obj = self.objs[next]
+                next_obj = self.objs.get(next, None)
+                if next_obj is None:
+                    continue
                 total_size += next_obj.size
                 pending_descendents.extend(next_obj.ref_list)
             obj.total_size = total_size

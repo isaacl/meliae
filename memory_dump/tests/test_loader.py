@@ -82,3 +82,12 @@ class TestObjManager(tests.TestCase):
         self.assertEqual(12, objs[5].total_size)
         self.assertEqual(29, objs[6].total_size)
         self.assertEqual(44, objs[7].total_size)
+
+    def test_compute_total_size_missing_ref(self):
+        lines = list(_example_dump)
+        # 999 isn't in the dump, not sure how we get these in real life, but
+        # they exist
+        lines.append('{"address": 8, "type": "tuple", "size": 16, "len": 1'
+                     ', "refs": [999]}')
+        manager = loader.load(lines, show_prog=False)
+        manager.compute_total_size()
