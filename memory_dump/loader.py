@@ -218,7 +218,7 @@ class ObjManager(object):
         # in this graph?
         for obj in self.objs.itervalues():
             pending_descendents = list(obj.ref_list)
-            seen = _intset.IntSet()
+            seen = _intset.IDSet()
             seen.add(obj.address)
             total_size = obj.size
             while pending_descendents:

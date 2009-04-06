@@ -30,7 +30,7 @@ def dump_all_referenced(outf, obj):
     # if isinstance(outf, str):
     #     outf = open(outf, 'wb')
     pending = [obj]
-    seen = _intset.IntSet()
+    seen = _intset.IDSet()
     while pending:
         next = pending.pop()
         id_next = id(next)
