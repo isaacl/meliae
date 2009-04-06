@@ -35,8 +35,23 @@ class TestMemObject(tests.TestCase):
         self.assertEqual((), mem.ref_list)
 
     def test_ref_list(self):
-        mem = _loader.MemObject(1234, 'tuple', 12, [4567, 8901])
+        mem = _loader.MemObject(1234, 'tuple', 20, [4567, 8901])
         self.assertEqual([4567, 8901], mem.ref_list)
+
+    def test_num_refs(self):
+        mem = _loader.MemObject(1234, 'tuple', 20, [4567, 8901])
+        self.assertEqual(2, mem.num_refs)
+        mem = _loader.MemObject(1234, 'tuple', 12, [])
+        self.assertEqual(0, mem.num_refs)
+
+    def test_num_referrers(self):
+        mem = _loader.MemObject(1234, 'tuple', 20, [4567, 8901])
+        mem.referrers = ()
+        self.assertEqual(0, mem.num_referrers)
+        self.assertEqual((), mem.referrers)
+        mem.referrers = [1, 2, 3]
+        self.assertEqual(3, mem.num_referrers)
+        self.assertEqual([1, 2, 3], mem.referrers)
 
     def test__repr__(self):
         mem = _loader.MemObject(0x1234, 'tuple', 12, [0x4567, 0x89ab])

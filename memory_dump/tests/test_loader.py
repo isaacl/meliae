@@ -23,27 +23,24 @@ from memory_dump import (
     )
 
 
+# A simple dump, with a couple of cross references, etc.
+# a@5 = 1
+# b@4 = 2
+# c@6 = 'a str'
+# t@7 = (a, b)
+# d@2 = {a:b, c:t}
+# l@3 = [a, b]
+# l.append(l)
+# outer@1 = (d, l)
 _example_dump = [
-'{"address": 505264624, "type": "NoneType", "size": 8, "refs": []}',
-'{"address": 505179844, "type": "bool", "size": 12, "refs": []}',
-'{"address": 505179832, "type": "bool", "size": 12, "refs": []}',
-'{"address": 23038136, "type": "int", "size": 12, "value": -5, "refs": []}',
-'{"address": 23038124, "type": "int", "size": 12, "value": -4, "refs": []}',
-'{"address": 23038112, "type": "int", "size": 12, "value": -3, "refs": []}',
-'{"address": 23038100, "type": "int", "size": 12, "value": -2, "refs": []}',
-'{"address": 23038088, "type": "int", "size": 12, "value": -1, "refs": []}',
-'{"address": 23038076, "type": "int", "size": 12, "value": 0, "refs": []}',
-'{"address": 23038064, "type": "int", "size": 12, "value": 1, "refs": []}',
-'{"address": 23038052, "type": "int", "size": 12, "value": 2, "refs": []}',
-'{"address": 23038040, "type": "int", "size": 12, "value": 3, "refs": []}',
-'{"address": 23038028, "type": "int", "size": 12, "value": 4, "refs": []}',
-'{"address": 23038016, "type": "int", "size": 12, "value": 5, "refs": []}',
-'{"address": 23038004, "type": "int", "size": 12, "value": 6, "refs": []}',
-'{"address": 23037992, "type": "int", "size": 12, "value": 7, "refs": []}',
-'{"address": 23037980, "type": "int", "size": 12, "value": 8, "refs": []}',
-'{"address": 23037968, "type": "int", "size": 12, "value": 9, "refs": []}',
-'{"address": 23037956, "type": "int", "size": 12, "value": 10, "refs": []}',
-'{"address": 1234, "type": "tuple", "size": 20, "refs": [505264624, 23038064]}',
+'{"address": 1, "type": "tuple", "size": 20, "len": 2, "refs": [2, 3]}',
+'{"address": 3, "type": "list", "size": 44, "len": 3, "refs": [3, 4, 5]}',
+'{"address": 5, "type": "int", "size": 12, "value": 1, "refs": []}',
+'{"address": 4, "type": "int", "size": 12, "value": 2, "refs": []}',
+'{"address": 2, "type": "dict", "size": 124, "len": 2, "refs": [5, 4, 6, 7]}',
+'{"address": 7, "type": "tuple", "size": 20, "len": 2, "refs": [4, 5]}',
+'{"address": 6, "type": "str", "size": 29, "len": 5, "value": "a str"'
+ ', "refs": []}',
 ]
 
 class TestLoad(tests.TestCase):
@@ -66,6 +63,10 @@ class TestObjManager(tests.TestCase):
         manager = loader.load(_example_dump, show_prog=False)
         manager.compute_referrers()
         objs = manager.objs
-        self.assertEqual((), objs[1234].referrers)
-        self.assertEqual([1234], objs[505264624].referrers)
-        self.assertEqual([1234], objs[23038064].referrers)
+        self.assertEqual((), objs[1].referrers)
+        self.assertEqual([1], objs[2].referrers)
+        self.assertEqual([1, 3], objs[3].referrers)
+        self.assertEqual([2, 3, 7], objs[4].referrers)
+        self.assertEqual([2, 3, 7], objs[5].referrers)
+        self.assertEqual([2], objs[6].referrers)
+        self.assertEqual([2], objs[7].referrers)

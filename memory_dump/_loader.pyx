@@ -114,6 +114,12 @@ cdef class MemObject:
         def __get__(self):
             return _ref_list_to_list(self._ref_list)
 
+    property num_refs:
+        def __get__(self):
+            if self._ref_list == NULL:
+                return 0
+            return self._ref_list[0]
+
     property referrers:
         """The list of objects that reference this object.
 
@@ -127,6 +133,12 @@ cdef class MemObject:
                 free(self._referrer_list)
                 self._referrer_list = NULL
             self._referrer_list = _list_to_ref_list(value)
+
+    property num_referrers:
+        def __get__(self):
+            if self._referrer_list == NULL:
+                return 0
+            return self._referrer_list[0]
 
     def __dealloc__(self):
         if self._ref_list != NULL:
