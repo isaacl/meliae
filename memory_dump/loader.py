@@ -84,10 +84,11 @@ def _from_line(cls, line, temp_cache=None):
         assert '\\' not in name
     if length is not None:
         length = int(length)
+    refs = [int(val) for val in _refs_re.findall(refs)]
     obj = cls(address=int(address),
               type_str=type_str,
               size=int(size),
-              ref_list=[int(val) for val in _refs_re.findall(refs)],
+              ref_list=refs,
               length=length,
               value=value,
               name=name)
@@ -230,20 +231,19 @@ class ObjManager(object):
             seen.add(obj.address)
             total_size = obj.size
             while pending_descendents:
-                next = pending_descendents.pop()
-                if next in seen:
+                next_ref = pending_descendents.pop()
+                if next_ref in seen:
                     continue
-                seen.add(next)
-                next_obj = self.objs.get(next, None)
+                seen.add(next_ref)
+                next_obj = self.objs.get(next_ref, None)
                 if next_obj is None:
                     continue
                 # type and frame types tend to cause us to recurse into
-                # everything. So for now, when we encounter them... punt
-                if next_obj.type_str in ('type', 'frame'):
-                    total_size = 1
-                    break
+                # everything. So for now, when we encounter them, don't add
+                # their references
                 total_size += next_obj.size
-                pending_descendents.extend(next_obj.ref_list)
+                pending_descendents.extend([ref for ref in next_obj.ref_list
+                                                 if ref not in seen])
             obj.total_size = total_size
 
     def summarize(self):
