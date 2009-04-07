@@ -206,6 +206,60 @@ class ObjManager(object):
         for obj in self.objs.itervalues():
             obj.referrers = referrers.get(obj.address, ())
 
+    def remove_expensive_references(self):
+        """Filter out 'expensive' references.
+
+        module.__dict__ tends to reference lots of other modules, which in turn
+        brings in the global reference cycle. Going further
+        function.__globals__ references module.__dict__, so it *too* ends up in
+        the global cycle. Generally these references aren't interesting, simply
+        because they end up referring to *everything*.
+
+        So for now, we filter out any reference to a module.
+        """
+        null_memobj = _loader.MemObject(0, '<ex-reference>', 0, [])
+        self.objs[0] = null_memobj
+        # First pass, find objects we don't want to reference any more
+        noref_objs = _intset.IDSet()
+        for obj in self.objs.itervalues():
+            # 'module's have a single __dict__, which tends to refer to other
+            # modules. As you start tracking into that, you end up getting into
+            # reference cycles, etc, which generally ends up referencing every
+            # object in memory.
+            # 'frame' also tends to be self referential, and a single frame
+            # ends up referencing the entire current state
+            # 'type' generally is self referential through several attributes.
+            # __bases__ means we recurse all the way up to object, and object
+            # has __subclasses__, which means we recurse down into all types.
+            # In general, not helpful for debugging memory consumption
+            if obj.type_str in ('module', 'frame', 'type'):
+                noref_objs.add(obj.address)
+        # Second pass, any object which refers to something in noref_objs will
+        # have that reference removed, and replaced with the null_memobj
+        for obj in self.objs.itervalues():
+            if obj.type_str == 'function':
+                # Functions have a reference to 'globals' which is not very
+                # helpful for having a clear understanding of what is going on
+                # especially since the function itself is in its own globals
+                # XXX: This is probably not a guaranteed order, but currently
+                #       func_traverse returns:
+                #   func_code, func_globals, func_module, func_defaults,
+                #   func_doc, func_name, func_dict, func_closure
+                # We want to remove the reference to globals and module
+                refs = list(obj.ref_list)
+                obj.ref_list = refs[:1] + refs[3:] + [0]
+                continue
+            for ref in obj.ref_list:
+                if ref in noref_objs:
+                    break
+            else:
+                # No bad references, keep going
+                continue
+            new_ref_list = [ref for ref in obj.ref_list
+                                 if ref not in noref_objs]
+            new_ref_list.append(0)
+            obj.ref_list = new_ref_list
+
     def compute_total_size(self):
         """This computes the total bytes referenced from this object."""
         # Unfortunately, this is an N^2 operation :(. The problem is that

@@ -38,6 +38,9 @@ class TestMemObject(tests.TestCase):
     def test_ref_list(self):
         mem = _loader.MemObject(1234, 'tuple', 20, [4567, 8901])
         self.assertEqual([4567, 8901], mem.ref_list)
+        mem.ref_list = [999, 4567, 0]
+        self.assertEqual([999, 4567, 0], mem.ref_list)
+        self.assertEqual(3, mem.num_refs)
 
     def test_num_refs(self):
         mem = _loader.MemObject(1234, 'tuple', 20, [4567, 8901])

@@ -91,3 +91,25 @@ class TestObjManager(tests.TestCase):
                      ', "refs": [999]}')
         manager = loader.load(lines, show_prog=False)
         manager.compute_total_size()
+
+    def test_remove_expensive_references(self):
+        lines = list(_example_dump)
+        lines.append('{"address": 8, "type": "module", "size": 12'
+                     ', "name": "mymod", "refs": [9]}')
+        lines.append('{"address": 9, "type": "dict", "size": 124'
+                     ', "refs": [10, 11]}')
+        lines.append('{"address": 10, "type": "module", "size": 12'
+                     ', "name": "mod2", "refs": [12]}')
+        lines.append('{"address": 11, "type": "str", "size": 27'
+                     ', "value": "boo", "refs": []}')
+        lines.append('{"address": 12, "type": "dict", "size": 124'
+                     ', "refs": []}')
+        manager = loader.load(lines, show_prog=False)
+        mymod_dict = manager.objs[9]
+        self.assertEqual([10, 11], mymod_dict.ref_list)
+        manager.remove_expensive_references()
+        self.assertTrue(0 in manager.objs)
+        null_obj = manager.objs[0]
+        self.assertEqual(0, null_obj.address)
+        self.assertEqual('<ex-reference>', null_obj.type_str)
+        self.assertEqual([11, 0], mymod_dict.ref_list)

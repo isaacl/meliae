@@ -118,7 +118,14 @@ cdef class MemObject:
         def __get__(self):
             return _ref_list_to_list(self._ref_list)
 
+        def __set__(self, value):
+            if self._ref_list != NULL:
+                free(self._ref_list)
+                self._ref_list = NULL
+            self._ref_list = _list_to_ref_list(value)
+
     property num_refs:
+        """The length of the ref_list."""
         def __get__(self):
             if self._ref_list == NULL:
                 return 0
@@ -139,6 +146,7 @@ cdef class MemObject:
             self._referrer_list = _list_to_ref_list(value)
 
     property num_referrers:
+        """The length of the referrers list."""
         def __get__(self):
             if self._referrer_list == NULL:
                 return 0
