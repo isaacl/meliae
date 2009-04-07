@@ -209,11 +209,15 @@ class TestJSONUnicode(tests.TestCase):
 
 # A pure python implementation of dump_object_info
 def _py_dump_json_obj(obj):
+    klass = getattr(obj, '__class__', None)
+    if klass is None:
+        # This is an old style class
+        klass = type(obj)
     content = [(
         '{"address": %d'
         ', "type": %s'
         ', "size": %d'
-        ) % (id(obj), _string_to_json(obj.__class__.__name__),
+        ) % (id(obj), _string_to_json(klass.__name__),
              _scanner.size_of(obj))
         ]
     name = getattr(obj, '__name__', None)
@@ -395,3 +399,15 @@ class TestDumpInfo(tests.TestCase):
         def myfunction():
             pass
         self.assertDumpInfo(myfunction)
+
+    def test_class(self):
+        class MyClass(object):
+            pass
+        self.assertDumpInfo(MyClass, nodump=set([object]))
+        inst = MyClass()
+        self.assertDumpInfo(inst)
+
+    def test_old_style_class(self):
+        class MyOldClass:
+            pass
+        self.assertDumpInfo(MyOldClass)

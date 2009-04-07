@@ -264,6 +264,10 @@ _dump_object_info(FILE *out, PyObject *c_obj, PyObject *nodump, int recurse)
     } else if (PyType_Check(c_obj)) {
         fprintf(out, ", \"name\": ");
         _dump_json_c_string(out, ((PyTypeObject *)c_obj)->tp_name, -1);
+    } else if (PyClass_Check(c_obj)) {
+        /* Old style class */
+        fprintf(out, ", \"name\": ");
+        _dump_string(out, ((PyClassObject *)c_obj)->cl_name);
     }
     if (PyString_Check(c_obj)) {
         fprintf(out, ", \"len\": %d", PyString_GET_SIZE(c_obj));
