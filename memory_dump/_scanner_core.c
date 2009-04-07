@@ -31,15 +31,20 @@ struct ref_info {
 Py_ssize_t
 _basic_object_size(PyObject *c_obj)
 {
-    return c_obj->ob_type->tp_basicsize;
+    Py_ssize_t size;
+    size = c_obj->ob_type->tp_basicsize;
+    if (PyType_HasFeature(c_obj->ob_type, Py_TPFLAGS_HAVE_GC)) {
+        size += sizeof(PyGC_Head);
+    }
+    return size;
 }
 
 
 Py_ssize_t
 _var_object_size(PyVarObject *c_obj)
 {
-    return (c_obj->ob_type->tp_basicsize +
-            c_obj->ob_size * c_obj->ob_type->tp_itemsize);
+    return _basic_object_size((PyObject *)c_obj)
+            + c_obj->ob_size * c_obj->ob_type->tp_itemsize;
 }
 
 
@@ -98,7 +103,7 @@ _size_of(PyObject *c_obj)
         return _size_of_dict((PyDictObject *)c_obj);
     } else if PyUnicode_Check(c_obj) {
         return _size_of_unicode((PyUnicodeObject *)c_obj);
-    } 
+    }
 
     if (c_obj->ob_type->tp_itemsize != 0) {
         // Variable length object with inline storage

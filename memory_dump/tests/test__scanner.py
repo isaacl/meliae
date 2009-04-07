@@ -27,116 +27,122 @@ from memory_dump import (
 
 class TestSizeOf(tests.TestCase):
 
-    def assertSizeOf(self, num_words, extra_size, obj):
+    def assertSizeOf(self, num_words, obj, extra_size=0, has_gc=True):
         expected_size = extra_size + num_words * _scanner._word_size
+        if has_gc:
+            expected_size += _scanner._gc_head_size
         self.assertEqual(expected_size, _scanner.size_of(obj))
 
     def test_empty_string(self):
-        self.assertSizeOf(6, 0, '')
+        self.assertSizeOf(6, '', extra_size=0, has_gc=False)
 
     def test_short_string(self):
-        self.assertSizeOf(6, 1, 'a')
+        self.assertSizeOf(6, 'a', extra_size=1, has_gc=False)
 
     def test_long_string(self):
-        self.assertSizeOf(6, 100*1024, ('abcd'*25)*1024)
+        self.assertSizeOf(6, ('abcd'*25)*1024,
+                          extra_size=100*1024, has_gc=False)
 
     def test_tuple(self):
-        self.assertSizeOf(3, 0, ())
+        self.assertSizeOf(3, ())
 
     def test_tuple_one(self):
-        self.assertSizeOf(3+1, 0, ('a',))
+        self.assertSizeOf(3+1, ('a',))
 
     def test_tuple_n(self):
-        self.assertSizeOf(3+3, 0, (1, 2, 3))
+        self.assertSizeOf(3+3, (1, 2, 3))
 
     def test_empty_list(self):
-        self.assertSizeOf(5, 0, [])
+        self.assertSizeOf(5, [])
 
     def test_list_with_one(self):
-        self.assertSizeOf(5+1, 0, [1])
+        self.assertSizeOf(5+1, [1])
 
     def test_list_with_three(self):
-        self.assertSizeOf(5+3, 0, [1, 2, 3])
+        self.assertSizeOf(5+3, [1, 2, 3])
 
     def test_int(self):
-        self.assertSizeOf(3, 0, 1)
+        self.assertSizeOf(3, 1, has_gc=False)
 
     def test_list_appended(self):
         # Lists over-allocate when you append to them, we want the *allocated*
         # size
         lst = []
         lst.append(1)
-        self.assertSizeOf(5+4, 0, lst)
+        self.assertSizeOf(5+4, lst)
 
     def test_empty_set(self):
-        self.assertSizeOf(25, 0, set())
-        self.assertSizeOf(25, 0, frozenset())
+        self.assertSizeOf(25, set())
+        self.assertSizeOf(25, frozenset())
 
     def test_small_sets(self):
-        self.assertSizeOf(25, 0, set(range(1)))
-        self.assertSizeOf(25, 0, set(range(2)))
-        self.assertSizeOf(25, 0, set(range(3)))
-        self.assertSizeOf(25, 0, set(range(4)))
-        self.assertSizeOf(25, 0, set(range(5)))
-        self.assertSizeOf(25, 0, frozenset(range(3)))
+        self.assertSizeOf(25, set(range(1)))
+        self.assertSizeOf(25, set(range(2)))
+        self.assertSizeOf(25, set(range(3)))
+        self.assertSizeOf(25, set(range(4)))
+        self.assertSizeOf(25, set(range(5)))
+        self.assertSizeOf(25, frozenset(range(3)))
 
     def test_medium_sets(self):
-        self.assertSizeOf(25 + 512*2, 0, set(range(100)))
-        self.assertSizeOf(25 + 512*2, 0, frozenset(range(100)))
+        self.assertSizeOf(25 + 512*2, set(range(100)))
+        self.assertSizeOf(25 + 512*2, frozenset(range(100)))
 
     def test_empty_dict(self):
-        self.assertSizeOf(31, 0, dict())
+        self.assertSizeOf(31, dict())
 
     def test_small_dict(self):
-        self.assertSizeOf(31, 0, dict.fromkeys(range(1)))
-        self.assertSizeOf(31, 0, dict.fromkeys(range(2)))
-        self.assertSizeOf(31, 0, dict.fromkeys(range(3)))
-        self.assertSizeOf(31, 0, dict.fromkeys(range(4)))
-        self.assertSizeOf(31, 0, dict.fromkeys(range(5)))
+        self.assertSizeOf(31, dict.fromkeys(range(1)))
+        self.assertSizeOf(31, dict.fromkeys(range(2)))
+        self.assertSizeOf(31, dict.fromkeys(range(3)))
+        self.assertSizeOf(31, dict.fromkeys(range(4)))
+        self.assertSizeOf(31, dict.fromkeys(range(5)))
 
     def test_medium_dict(self):
-        self.assertSizeOf(31+512*3, 0, dict.fromkeys(range(100)))
+        self.assertSizeOf(31+512*3, dict.fromkeys(range(100)))
 
     def test_basic_types(self):
-        self.assertSizeOf(106, 0, dict)
-        self.assertSizeOf(106, 0, set)
-        self.assertSizeOf(106, 0, tuple)
+        self.assertSizeOf(106, dict)
+        self.assertSizeOf(106, set)
+        self.assertSizeOf(106, tuple)
 
     def test_user_type(self):
         class Foo(object):
             pass
-        self.assertSizeOf(106, 0, Foo)
+        self.assertSizeOf(106, Foo)
 
     def test_simple_object(self):
         obj = object()
-        self.assertSizeOf(2, 0, obj)
+        self.assertSizeOf(2, obj, has_gc=False)
 
     def test_user_instance(self):
         class Foo(object):
             pass
         # This has a pointer to a dict and a weakref list
         f = Foo()
-        self.assertSizeOf(4, 0, f)
+        self.assertSizeOf(4, f)
 
     def test_slotted_instance(self):
         class One(object):
             __slots__ = ['one']
         # The basic object plus memory for one member
-        self.assertSizeOf(3, 0, One())
+        self.assertSizeOf(3, One())
         class Two(One):
             __slots__ = ['two']
-        self.assertSizeOf(4, 0, Two())
+        self.assertSizeOf(4, Two())
 
     def test_empty_unicode(self):
-        self.assertSizeOf(6, 0, u'')
+        self.assertSizeOf(6, u'', extra_size=0, has_gc=False)
 
     def test_small_unicode(self):
-        self.assertSizeOf(6, _scanner._unicode_size*1, u'a')
-        self.assertSizeOf(6, _scanner._unicode_size*4, u'abcd')
-        self.assertSizeOf(6, _scanner._unicode_size*2, u'\xbe\xe5')
+        self.assertSizeOf(6, u'a', extra_size=_scanner._unicode_size*1,
+                          has_gc=False)
+        self.assertSizeOf(6, u'abcd', extra_size=_scanner._unicode_size*4,
+                          has_gc=False)
+        self.assertSizeOf(6, u'\xbe\xe5', extra_size=_scanner._unicode_size*2,
+                          has_gc=False)
 
     def test_None(self):
-        self.assertSizeOf(2, 0, None)
+        self.assertSizeOf(2, None, has_gc=False)
 
 
 def _string_to_json(s):

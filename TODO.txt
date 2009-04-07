@@ -13,7 +13,7 @@ A fairly random collection of things to work on next...
    When this happens, create an official project on Launchpad, and host it
    there.
 
-2) Tracking the memory consumed by the GC overhead.
+2) (DONE @ revno 58) Tracking the memory consumed by the GC overhead.
 
    Objects allocated in the garbage collector (just about everything,
    strings being the notable exception) actually have a PyGC_Head

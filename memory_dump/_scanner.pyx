@@ -26,6 +26,8 @@ cdef extern from "stdio.h":
 cdef extern from "Python.h":
     FILE *PyFile_AsFile(object)
     int Py_UNICODE_SIZE
+    ctypedef struct PyGC_Head:
+        pass
 
 cdef extern from "_scanner_core.h":
     Py_ssize_t _size_of(object c_obj)
@@ -33,6 +35,7 @@ cdef extern from "_scanner_core.h":
 
 
 _word_size = sizeof(Py_ssize_t)
+_gc_head_size = sizeof(PyGC_Head)
 _unicode_size = Py_UNICODE_SIZE
 
 
