@@ -64,6 +64,28 @@ cdef long *_list_to_ref_list(object refs):
     return ref_list
 
 
+cdef object _format_list(long *ref_list):
+    cdef long i, num_refs, max_refs
+
+    if ref_list == NULL:
+        return ''
+    num_refs = ref_list[0]
+    max_refs = num_refs
+    if max_refs > 10:
+        max_refs = 10
+    ref_str = ['[']
+    for i from 0 <= i < max_refs:
+        if i == 0:
+            ref_str.append('%d' % ref_list[i+1])
+        else:
+            ref_str.append(', %d' % ref_list[i+1])
+    if num_refs > 10:
+        ref_str.append(', ...]')
+    else:
+        ref_str.append(']')
+    return ''.join(ref_str)
+
+
 cdef class MemObject:
     """This defines the information we know about the objects.
 
@@ -169,13 +191,28 @@ cdef class MemObject:
             self._referrer_list = NULL
 
     def __repr__(self):
+        cdef int i, max_refs
         if self.name is not None:
             name_str = ', %s' % (self.name,)
         else:
             name_str = ''
-        return ('%s(%08x, %s%s, %d bytes, %d refs)'
+        if self._ref_list == NULL:
+            num_refs = 0
+            ref_space = ''
+            ref_str = ''
+        else:
+            num_refs = self._ref_list[0]
+            ref_str = _format_list(self._ref_list)
+            ref_space = ' '
+        if self._referrer_list == NULL:
+            referrer_str = ''
+        else:
+            referrer_str = ', %d referrers %s' % (self._referrer_list[0],
+                _format_list(self._referrer_list))
+        return ('%s(%d, %s%s, %d bytes, %d refs%s%s%s)'
                 % (self.__class__.__name__, self.address, self.type_str,
-                   name_str, self.size, len(self.ref_list)))
+                   name_str, self.size, num_refs, ref_space, ref_str,
+                   referrer_str))
 
     def _intern_from_cache(self, cache):
         self.type_str = cache.setdefault(self.type_str, self.type_str)

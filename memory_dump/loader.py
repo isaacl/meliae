@@ -186,8 +186,9 @@ class ObjManager(object):
     This is the interface for doing queries, etc.
     """
 
-    def __init__(self, objs):
+    def __init__(self, objs, show_progress=True):
         self.objs = objs
+        self.show_progress = show_progress
 
     def compute_referrers(self):
         """For each object, figure out who is referencing it."""
@@ -195,9 +196,9 @@ class ObjManager(object):
         id_cache = {}
         total = len(self.objs)
         for idx, obj in enumerate(self.objs.itervalues()):
-            # if idx & 0x1ff == 0:
-            #     sys.stderr.write('compute referrers %8d / %8d        \r'
-            #                      % (idx, total))
+            if self.show_progress and idx & 0x1ff == 0:
+                sys.stderr.write('compute referrers %8d / %8d        \r'
+                                 % (idx, total))
             address = obj.address
             address = id_cache.setdefault(address, address)
             for ref in obj.ref_list:
@@ -221,7 +222,10 @@ class ObjManager(object):
         self.objs[0] = null_memobj
         # First pass, find objects we don't want to reference any more
         noref_objs = _intset.IDSet()
-        for obj in self.objs.itervalues():
+        lru_objs = _intset.IDSet()
+        total_objs = len(self.objs)
+        total_steps = total_objs * 2
+        for idx, obj in enumerate(self.objs.itervalues()):
             # 'module's have a single __dict__, which tends to refer to other
             # modules. As you start tracking into that, you end up getting into
             # reference cycles, etc, which generally ends up referencing every
@@ -232,11 +236,21 @@ class ObjManager(object):
             # __bases__ means we recurse all the way up to object, and object
             # has __subclasses__, which means we recurse down into all types.
             # In general, not helpful for debugging memory consumption
+            if self.show_progress and idx & 0x1ff == 0:
+                sys.stderr.write('finding expensive refs... %8d / %8d    \r'
+                                 % (idx, total_steps))
             if obj.type_str in ('module', 'frame', 'type'):
                 noref_objs.add(obj.address)
+            if obj.type_str == '_LRUNode':
+                lru_objs.add(obj.address)
         # Second pass, any object which refers to something in noref_objs will
         # have that reference removed, and replaced with the null_memobj
-        for obj in self.objs.itervalues():
+        num_expensive = len(noref_objs)
+        for idx, obj in enumerate(self.objs.itervalues()):
+            if self.show_progress and idx & 0x1ff == 0:
+                sys.stderr.write('removing %d expensive refs... %8d / %8d   \r'
+                                 % (num_expensive, idx + total_objs,
+                                    total_steps))
             if obj.type_str == 'function':
                 # Functions have a reference to 'globals' which is not very
                 # helpful for having a clear understanding of what is going on
@@ -249,6 +263,11 @@ class ObjManager(object):
                 refs = list(obj.ref_list)
                 obj.ref_list = refs[:1] + refs[3:] + [0]
                 continue
+            if obj.type_str == '_LRUNode':
+                # We remove the 'sideways' references
+                obj.ref_list = [ref for ref in obj.ref_list
+                                     if ref not in lru_objs]
+                continue
             for ref in obj.ref_list:
                 if ref in noref_objs:
                     break
@@ -259,6 +278,9 @@ class ObjManager(object):
                                  if ref not in noref_objs]
             new_ref_list.append(0)
             obj.ref_list = new_ref_list
+        if self.show_progress:
+            sys.stderr.write('removed %d expensive refs from %d objs%s\n'
+                             % (num_expensive, total_objs, ' '*20))
 
     def compute_total_size(self):
         """This computes the total bytes referenced from this object."""
@@ -276,10 +298,11 @@ class ObjManager(object):
         # size of A. Also, how do you give the relative contribution of B vs C
         # in this graph?
         total = len(self.objs)
+        break_on = total / 10
         for idx, obj in enumerate(self.objs.itervalues()):
-            # if idx & 0x1ff == 0:
-            #     sys.stderr.write('compute size %8d / %8d        \r'
-            #                      % (idx, total))
+            if self.show_progress and idx & 0x1ff == 0:
+                sys.stderr.write('compute size %8d / %8d        \r'
+                                 % (idx, total))
             pending_descendents = list(obj.ref_list)
             seen = _intset.IDSet()
             seen.add(obj.address)
@@ -298,6 +321,11 @@ class ObjManager(object):
                 total_size += next_obj.size
                 pending_descendents.extend([ref for ref in next_obj.ref_list
                                                  if ref not in seen])
+            ## count = len(seen)
+            ## # This single object references more than 10% of all objects, and
+            ## # expands to more that 10x its direct references
+            ## if count > obj.num_refs * 10 and count > break_on:
+            ##     import pdb; pdb.set_trace()
             obj.total_size = total_size
 
     def summarize(self):
@@ -362,4 +390,4 @@ def load(source, using_json=False, show_prog=True):
             'loaded line %d, %d objs, %5.1f / %5.1f MiB read in %.1fs        \n'
             % (line_num, len(objs), mb_read, input_mb, tdelta))
     # _fill_total_size(objs)
-    return ObjManager(objs)
+    return ObjManager(objs, show_progress=show_prog)

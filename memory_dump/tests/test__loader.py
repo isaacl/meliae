@@ -64,10 +64,22 @@ class TestMemObject(tests.TestCase):
         self.assertEqual(100, mem.total_size)
 
     def test__repr__(self):
-        mem = _loader.MemObject(0x1234, 'tuple', 12, [0x4567, 0x89ab])
-        self.assertEqual('MemObject(00001234, tuple, 12 bytes, 2 refs)',
-                         repr(mem))
-        mem = _loader.MemObject(0x1234, 'module', 12, [0x4567, 0x89ab],
+        mem = _loader.MemObject(1234, 'str', 24, [])
+        self.assertEqual('MemObject(1234, str, 24 bytes'
+                         ', 0 refs)', repr(mem))
+        mem = _loader.MemObject(1234, 'tuple', 12, [4567, 8900])
+        self.assertEqual('MemObject(1234, tuple, 12 bytes'
+                         ', 2 refs [4567, 8900])', repr(mem))
+        mem = _loader.MemObject(1234, 'module', 12, [4567, 8900],
                                 name='named')
-        self.assertEqual('MemObject(00001234, module, named, 12 bytes'
-                         ', 2 refs)', repr(mem))
+        self.assertEqual('MemObject(1234, module, named, 12 bytes'
+                         ', 2 refs [4567, 8900])', repr(mem))
+        mem = _loader.MemObject(1234, 'module', 12, range(20))
+        self.assertEqual('MemObject(1234, module, 12 bytes'
+                         ', 20 refs [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, ...])',
+                         repr(mem))
+        mem = _loader.MemObject(1234, 'foo', 12, [10])
+        mem.referrers = [20, 30]
+        self.assertEqual('MemObject(1234, foo, 12 bytes'
+                         ', 1 refs [10], 2 referrers [20, 30])',
+                         repr(mem))
