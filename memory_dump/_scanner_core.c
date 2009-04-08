@@ -121,9 +121,9 @@ _dump_reference(PyObject *c_obj, void* val)
     out = (struct ref_info*)val;
     if (out->first) {
         out->first = 0;
-        fprintf(out->out, "%ld", (long)c_obj);
+        fprintf(out->out, "%lu", (unsigned long)c_obj);
     } else {
-        fprintf(out->out, ", %ld", (long)c_obj);
+        fprintf(out->out, ", %lu", (unsigned long)c_obj);
     }
     return 0;
 }
@@ -256,7 +256,7 @@ _dump_object_info(FILE *out, PyObject *c_obj, PyObject *nodump, int recurse)
     }
 
     size = _size_of(c_obj);
-    fprintf(out, "{\"address\": %ld, \"type\": ", (long)c_obj);
+    fprintf(out, "{\"address\": %lu, \"type\": ", (unsigned long)c_obj);
     _dump_json_c_string(out, c_obj->ob_type->tp_name, -1);
     fprintf(out, ", \"size\": %d", _size_of(c_obj));
     //  HANDLE __name__
