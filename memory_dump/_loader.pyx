@@ -45,6 +45,7 @@ cdef object _ref_list_to_list(long *ref_list):
 
 cdef long *_list_to_ref_list(object refs):
     cdef long i, num_refs, *ref_list
+    cdef unsigned long temp
 
     num_refs = len(refs)
     if num_refs == 0:
@@ -53,7 +54,12 @@ cdef long *_list_to_ref_list(object refs):
     ref_list[0] = num_refs
     i = 1
     for ref in refs:
-        ref_list[i] = ref
+        # refs often come in as unsigned integers, internally, we just track
+        # them as ints. Note that we don't support processing a 64-bit dump
+        # on 32-bit platforms. We *could* but it isn't really worth the memory
+        # overhead (yet).
+        temp = ref
+        ref_list[i] = <long>temp
         i = i + 1
     return ref_list
 
@@ -100,7 +106,9 @@ cdef class MemObject:
 
     def __init__(self, address, type_str, size, ref_list, length=None,
                  value=None, name=None):
-        self.address = address
+        cdef unsigned long temp_address
+        temp_address = address
+        self.address = <long>temp_address
         self.type_str = type_str
         self.size = size
         self._ref_list = _list_to_ref_list(ref_list)

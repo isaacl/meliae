@@ -16,9 +16,13 @@
 
 """Read back in a dump file and process it"""
 
+import sys
+import tempfile
+
 from memory_dump import (
     _loader,
     loader,
+    scanner,
     tests,
     )
 
@@ -45,6 +49,23 @@ _example_dump = [
 
 class TestLoad(tests.TestCase):
 
+    def test_load_smoketest(self):
+        test_dict = {1:2, None:'a string'}
+        t = tempfile.TemporaryFile(prefix='memory_dump-')
+        # On some platforms TemporaryFile returns a wrapper object with 'file'
+        # being the real object, on others, the returned object *is* the real
+        # file object
+        t_file = getattr(t, 'file', t)
+        scanner.dump_all_referenced(t_file, test_dict)
+        t_file.seek(0)
+        manager = loader.load(t_file, show_prog=False)
+        test_dict_id = id(test_dict)
+        if test_dict_id > sys.maxint:
+            # We wrapped around to the negative value, note, this needs to be
+            # re-evaluated for 64-bit versions of python
+            test_dict_id = int(test_dict_id - 2 * (sys.maxint + 1))
+        self.assertTrue(test_dict_id in manager.objs)
+        
     def test_load_one(self):
         objs = loader.load([
             '{"address": 1234, "type": "int", "size": 12, "value": 10'
