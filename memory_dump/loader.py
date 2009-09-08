@@ -1,18 +1,18 @@
 # Copyright (C) 2009 Canonical Ltd
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License and
+# the GNU Lesser General Public License along with this program.  If
+# not, see <http://www.gnu.org/licenses/>.
 
 """Take a given dump file, and bring the data back.
 
@@ -359,6 +359,7 @@ def load(source, using_json=False, show_prog=True):
         )
     bytes_read = count = 0
     last = 0
+    mb_read = 0
 
     for line_num, line in enumerate(source):
         bytes_read += len(line)
@@ -385,6 +386,7 @@ def load(source, using_json=False, show_prog=True):
                 'loading... line %d, %d objs, %5.1f / %5.1f MiB read in %.1fs\r'
                 % (line_num, len(objs), mb_read, input_mb, tdelta))
     if show_prog:
+        mb_read = bytes_read / 1024. / 1024
         tdelta = time.time() - tstart
         sys.stderr.write(
             'loaded line %d, %d objs, %5.1f / %5.1f MiB read in %.1fs        \n'
