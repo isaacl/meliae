@@ -25,6 +25,9 @@ from meliae import (
     )
 
 
+size_of = _scanner.size_of
+
+
 def dump_all_referenced(outf, obj):
     """Recursively dump everything that is referenced from obj."""
     # if isinstance(outf, str):
@@ -111,4 +114,25 @@ def get_recursive_size(obj):
     return len(seen), total_size
 
 
-size_of = _scanner.size_of
+def get_recursive_items(obj):
+    """Walk all referred items and return the unique list of them."""
+    all = []
+    pending = [obj]
+    last_item = 0
+    seen = _intset.IDSet()
+    while last_item >= 0:
+        item = pending[last_item]
+        last_item -= 1
+        id_item = id(item)
+        if id_item in seen:
+            continue
+        seen.add(id_item)
+        all.append(item)
+        for child in gc.get_referents(item):
+            if id(child) not in seen:
+                last_item += 1
+                if len(pending) > last_item:
+                    pending[last_item] = child
+                else:
+                    pending.append(child)
+    return all

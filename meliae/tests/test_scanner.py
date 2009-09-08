@@ -113,3 +113,28 @@ class TestGetRecursiveSize(tests.TestCase):
         total_size = (scanner.size_of(s1) + scanner.size_of(s2)
                       + scanner.size_of(l))
         self.assertRecursiveSize(3, total_size, l)
+
+
+
+class TestGetRecursiveItems(tests.TestCase):
+
+    def assertRecursiveItems(self, expected, root):
+        actual = scanner.get_recursive_items(root)
+        self.assertEqual(len(expected), len(actual))
+        by_id = dict((id(x), x) for x in actual)
+        for obj in expected:
+            id_obj = id(obj)
+            self.assertTrue(id_obj in by_id)
+            self.assertTrue(by_id[id_obj] is obj)
+
+    def test_single(self):
+        a = 1
+        self.assertRecursiveItems([a], a)
+
+    def test_dict(self):
+        a = 1
+        b = 2
+        c = 'three'
+        d = 'four'
+        dd = {a:b, c:d}
+        self.assertRecursiveItems([a, b, c, d, dd], dd)
