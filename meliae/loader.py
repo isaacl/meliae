@@ -30,7 +30,7 @@ try:
 except ImportError:
     simplejson = None
 
-from memory_dump import (
+from meliae import (
     _intset,
     _loader,
     )

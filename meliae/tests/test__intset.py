@@ -16,7 +16,7 @@
 
 """Test the Set of Integers object."""
 
-from memory_dump import (
+from meliae import (
     _intset,
     tests,
     )

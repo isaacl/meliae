@@ -19,7 +19,7 @@
 import gc
 import types
 
-from memory_dump import (
+from meliae import (
     _intset,
     _scanner,
     )

@@ -16,7 +16,7 @@
 
 """Pyrex extension for tracking loaded objects"""
 
-from memory_dump import (
+from meliae import (
     _loader,
     tests,
     )

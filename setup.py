@@ -18,13 +18,14 @@
 def config():
     ext = []
     kwargs = {
-        "name": "memory_dump",
+        "name": "meliae",
         "version": "0.1.1",
         "description": "Dump Memory Content to disk for Python Programs",
         "author": "John Arbash Meinel",
         "author_email": "john.meinel@canonical.com",
-        "url": "https://launchpad.net/pymemorydump",
-        "packages": ["memory_dump"],
+        "url": "https://launchpad.net/meliae",
+        "packages": ["meliae"],
+        "scripts": ["strip_duplicates.py"],
         "ext_modules": ext
     }
 
@@ -37,13 +38,13 @@ def config():
         return
 
     kwargs["cmdclass"] = {"build_ext": build_ext}
-    ext.append(Extension("memory_dump._scanner",
-                         ["memory_dump/_scanner.pyx",
-                          "memory_dump/_scanner_core.c"]))
-    ext.append(Extension("memory_dump._loader",
-                         ["memory_dump/_loader.pyx"]))
-    ext.append(Extension("memory_dump._intset",
-                         ["memory_dump/_intset.pyx"]))
+    ext.append(Extension("meliae._scanner",
+                         ["meliae/_scanner.pyx",
+                          "meliae/_scanner_core.c"]))
+    ext.append(Extension("meliae._loader",
+                         ["meliae/_loader.pyx"]))
+    ext.append(Extension("meliae._intset",
+                         ["meliae/_intset.pyx"]))
 
     setup(**kwargs)
 

@@ -19,7 +19,7 @@
 import sys
 import tempfile
 
-from memory_dump import (
+from meliae import (
     _loader,
     loader,
     scanner,
@@ -51,7 +51,7 @@ class TestLoad(tests.TestCase):
 
     def test_load_smoketest(self):
         test_dict = {1:2, None:'a string'}
-        t = tempfile.TemporaryFile(prefix='memory_dump-')
+        t = tempfile.TemporaryFile(prefix='meliae-')
         # On some platforms TemporaryFile returns a wrapper object with 'file'
         # being the real object, on others, the returned object *is* the real
         # file object

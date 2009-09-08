@@ -18,17 +18,17 @@
 
 import tempfile
 
-from memory_dump import (
+from meliae import (
     scanner,
     tests,
     )
-from memory_dump.tests import test__scanner
+from meliae.tests import test__scanner
 
 
 class TestDumpAllReferenced(tests.TestCase):
 
     def assertDumpAllReferenced(self, ref_objs, obj):
-        t = tempfile.TemporaryFile(prefix='memory_dump-')
+        t = tempfile.TemporaryFile(prefix='meliae-')
         # On some platforms TemporaryFile returns a wrapper object with 'file'
         # being the real object, on others, the returned object *is* the real
         # file object

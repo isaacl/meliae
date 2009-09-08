@@ -17,10 +17,11 @@
 """Tests for the object scanner."""
 
 import gc
+import sys
 import tempfile
 import types
 
-from memory_dump import (
+from meliae import (
     _scanner,
     tests,
     )
@@ -101,14 +102,20 @@ class TestSizeOf(tests.TestCase):
         self.assertSizeOf(31+512*3, dict.fromkeys(range(100)))
 
     def test_basic_types(self):
-        self.assertSizeOf(106, dict)
-        self.assertSizeOf(106, set)
-        self.assertSizeOf(106, tuple)
+        type_size = 106
+        if sys.version_info[:2] >= (2, 6):
+            type_size = 109
+        self.assertSizeOf(type_size, dict)
+        self.assertSizeOf(type_size, set)
+        self.assertSizeOf(type_size, tuple)
 
     def test_user_type(self):
         class Foo(object):
             pass
-        self.assertSizeOf(106, Foo)
+        if sys.version_info[:2] >= (2, 6):
+            self.assertSizeOf(109, Foo)
+        else:
+            self.assertSizeOf(106, Foo)
 
     def test_simple_object(self):
         obj = object()
@@ -313,7 +320,7 @@ class TestPyDumpJSONObj(tests.TestCase):
         m = _scanner
         self.assertDumpText(
             '{"address": %d, "type": "module", "size": %d'
-            ', "name": "memory_dump._scanner", "refs": [%d]}\n'
+            ', "name": "meliae._scanner", "refs": [%d]}\n'
             % (id(m), _scanner.size_of(m), id(m.__dict__)), m)
 
 
@@ -321,7 +328,7 @@ class TestDumpInfo(tests.TestCase):
     """dump_object_info should give the same result at py_dump_object_info"""
 
     def assertDumpInfo(self, obj, nodump=None):
-        t = tempfile.TemporaryFile(prefix='memory_dump-')
+        t = tempfile.TemporaryFile(prefix='meliae-')
         # On some platforms TemporaryFile returns a wrapper object with 'file'
         # being the real object, on others, the returned object *is* the real
         # file object
