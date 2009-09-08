@@ -80,3 +80,35 @@ def dump_gc_objects(outf, recurse_depth=1):
     for obj in all_objs:
         _scanner.dump_object_info(outf, obj, nodump=nodump,
                                   recurse_depth=recurse_depth)
+
+
+def get_recursive_size(obj):
+    """Get the memory referenced from this object.
+
+    This returns the memory of the direct object, and all of the memory
+    referenced by child objects. It also returns the total number of objects.
+    """
+    total_size = 0
+    pending = [obj]
+    last_item = 0
+    seen = _intset.IDSet()
+    size_of = _scanner.size_of
+    while last_item >= 0:
+        item = pending[last_item]
+        last_item -= 1
+        id_item = id(item)
+        if id_item in seen:
+            continue
+        seen.add(id_item)
+        total_size += size_of(item)
+        for child in gc.get_referents(item):
+            if id(child) not in seen:
+                last_item += 1
+                if len(pending) > last_item:
+                    pending[last_item] = child
+                else:
+                    pending.append(child)
+    return len(seen), total_size
+
+
+size_of = _scanner.size_of

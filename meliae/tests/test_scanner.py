@@ -76,3 +76,40 @@ class TestDumpAllReferenced(tests.TestCase):
         # We have a reference cycle here, but we should not loop endlessly :)
         self.assertDumpAllReferenced([a, b, c, l], l)
         self.assertDumpAllReferenced([a, b, c, l], c)
+
+
+class TestGetRecursiveSize(tests.TestCase):
+
+    def assertRecursiveSize(self, n_objects, total_size, obj):
+        self.assertEqual((n_objects, total_size),
+                         scanner.get_recursive_size(obj))
+
+    def test_single_object(self):
+        i = 1
+        self.assertRecursiveSize(1, scanner.size_of(i), i)
+        d = {}
+        self.assertRecursiveSize(1, scanner.size_of(d), d)
+        l = []
+        self.assertRecursiveSize(1, scanner.size_of(l), l)
+
+    def test_referenced(self):
+        s1 = 'this is a simple string'
+        s2 = 'and this is another one'
+        s3 = s1 + s2
+        s4 = 'this is a' + ' simple string'# same as s1, but diff object
+        self.assertTrue(s1 is not s4)
+        self.assertTrue(s1 == s4)
+        d = {s1:s2, s3:s4}
+        total_size = (scanner.size_of(s1) + scanner.size_of(s2)
+                      + scanner.size_of(s3) + scanner.size_of(s4)
+                      + scanner.size_of(d))
+        self.assertRecursiveSize(5, total_size, d)
+
+    def test_recursive(self):
+        s1 = 'this is a simple string'
+        s2 = 'and this is another one'
+        l = [s1, s2]
+        l.append(l)
+        total_size = (scanner.size_of(s1) + scanner.size_of(s2)
+                      + scanner.size_of(l))
+        self.assertRecursiveSize(3, total_size, l)
