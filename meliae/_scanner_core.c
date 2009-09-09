@@ -43,8 +43,15 @@ _basic_object_size(PyObject *c_obj)
 Py_ssize_t
 _var_object_size(PyVarObject *c_obj)
 {
+    Py_ssize_t num_entries;
+    num_entries = PyObject_Size((PyObject *)c_obj);
+    if (num_entries < 0) {
+        /* This object doesn't support len() */
+        num_entries = 0;
+        PyErr_Clear();
+    }
     return _basic_object_size((PyObject *)c_obj)
-            + c_obj->ob_size * c_obj->ob_type->tp_itemsize;
+            + num_entries * c_obj->ob_type->tp_itemsize;
 }
 
 
