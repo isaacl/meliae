@@ -26,6 +26,11 @@ from meliae import (
     tests,
     )
 
+
+STRING_BASE = 8
+STRING_SCALING = 4
+
+
 class TestSizeOf(tests.TestCase):
 
     def assertSizeOf(self, num_words, obj, extra_size=0, has_gc=True):
@@ -35,14 +40,14 @@ class TestSizeOf(tests.TestCase):
         self.assertEqual(expected_size, _scanner.size_of(obj))
 
     def test_empty_string(self):
-        self.assertSizeOf(6, '', extra_size=0, has_gc=False)
+        self.assertSizeOf(STRING_SCALING, '', extra_size=0+STRING_BASE, has_gc=False)
 
     def test_short_string(self):
-        self.assertSizeOf(6, 'a', extra_size=1, has_gc=False)
+        self.assertSizeOf(STRING_SCALING, 'a', extra_size=1+STRING_BASE, has_gc=False)
 
     def test_long_string(self):
-        self.assertSizeOf(6, ('abcd'*25)*1024,
-                          extra_size=100*1024, has_gc=False)
+        self.assertSizeOf(STRING_SCALING, ('abcd'*25)*1024,
+                          extra_size=100*1024+STRING_BASE, has_gc=False)
 
     def test_tuple(self):
         self.assertSizeOf(3, ())
