@@ -25,6 +25,19 @@
 #  define Py_TYPE(o) ((o)->ob_type)
 #endif
 
+// %zd is the gcc convention for defining that we are formatting a size_t
+// object, windows seems to prefer %ld, though perhaps we need to first check
+// sizeof(size_t) ?
+#ifdef _WIN32
+#  if defined(_M_X64) || defined(__amd64__)
+#    define SSIZET_FMT "%ld"
+#  else
+#    define SSIZET_FMT "%d"
+#  endif
+#else
+#  define SSIZET_FMT "%zd"
+#endif
+
 struct ref_info {
     FILE *out;
     int first;
@@ -268,7 +281,7 @@ _dump_object_info(FILE *out, PyObject *c_obj, PyObject *nodump, int recurse)
     size = _size_of(c_obj);
     fprintf(out, "{\"address\": %lu, \"type\": ", (unsigned long)c_obj);
     _dump_json_c_string(out, c_obj->ob_type->tp_name, -1);
-    fprintf(out, ", \"size\": %ld", _size_of(c_obj));
+    fprintf(out, ", \"size\": " SSIZET_FMT, _size_of(c_obj));
     //  HANDLE __name__
     if (PyModule_Check(c_obj)) {
         fprintf(out, ", \"name\": ");
@@ -285,23 +298,23 @@ _dump_object_info(FILE *out, PyObject *c_obj, PyObject *nodump, int recurse)
         _dump_string(out, ((PyClassObject *)c_obj)->cl_name);
     }
     if (PyString_Check(c_obj)) {
-        fprintf(out, ", \"len\": %ld", PyString_GET_SIZE(c_obj));
+        fprintf(out, ", \"len\": " SSIZET_FMT, PyString_GET_SIZE(c_obj));
         fprintf(out, ", \"value\": ");
         _dump_string(out, c_obj);
     } else if (PyUnicode_Check(c_obj)) {
-        fprintf(out, ", \"len\": %ld", PyUnicode_GET_SIZE(c_obj));
+        fprintf(out, ", \"len\": " SSIZET_FMT, PyUnicode_GET_SIZE(c_obj));
         fprintf(out, ", \"value\": ");
         _dump_unicode(out, c_obj);
     } else if (PyInt_CheckExact(c_obj)) {
         fprintf(out, ", \"value\": %ld", PyInt_AS_LONG(c_obj));
     } else if (PyTuple_Check(c_obj)) {
-        fprintf(out, ", \"len\": %ld", PyTuple_GET_SIZE(c_obj));
+        fprintf(out, ", \"len\": " SSIZET_FMT, PyTuple_GET_SIZE(c_obj));
     } else if (PyList_Check(c_obj)) {
-        fprintf(out, ", \"len\": %ld", PyList_GET_SIZE(c_obj));
+        fprintf(out, ", \"len\": " SSIZET_FMT, PyList_GET_SIZE(c_obj));
     } else if (PyAnySet_Check(c_obj)) {
-        fprintf(out, ", \"len\": %ld", PySet_GET_SIZE(c_obj));
+        fprintf(out, ", \"len\": " SSIZET_FMT, PySet_GET_SIZE(c_obj));
     } else if (PyDict_Check(c_obj)) {
-        fprintf(out, ", \"len\": %ld", PyDict_Size(c_obj));
+        fprintf(out, ", \"len\": " SSIZET_FMT, PyDict_Size(c_obj));
     }
     fprintf(out, ", \"refs\": [");
     if (Py_TYPE(c_obj)->tp_traverse != NULL) {
