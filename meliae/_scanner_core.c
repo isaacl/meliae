@@ -21,6 +21,9 @@
 
 #include "_scanner_core.h"
 
+#ifndef Py_TYPE
+#  define Py_TYPE(o) ((o)->ob_type)
+#endif
 
 struct ref_info {
     FILE *out;
