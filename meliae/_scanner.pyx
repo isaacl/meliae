@@ -32,6 +32,7 @@ cdef extern from "Python.h":
 cdef extern from "_scanner_core.h":
     Py_ssize_t _size_of(object c_obj)
     void _dump_object_info(FILE *, object c_obj, object nodump, int recurse)
+    object _get_referents(object c_obj)
 
 
 _word_size = sizeof(Py_ssize_t)
@@ -59,3 +60,13 @@ def dump_object_info(object fp, object obj, object nodump=None, int recurse_dept
     if out == NULL:
         raise TypeError('not a file')
     _dump_object_info(out, obj, nodump, recurse_depth)
+
+
+def get_referents(object obj):
+    """Similar to gc.get_referents()
+
+    The main different is that gc.get_referents() only includes items that are
+    in the garbage collector. However, we want anything referred to by
+    tp_traverse.
+    """
+    return _get_referents(obj)

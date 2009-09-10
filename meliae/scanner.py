@@ -26,6 +26,7 @@ from meliae import (
 
 
 size_of = _scanner.size_of
+get_referents = _scanner.get_referents
 
 
 def dump_all_referenced(outf, obj):
@@ -42,7 +43,7 @@ def dump_all_referenced(outf, obj):
         seen.add(id_next)
         # We will recurse here, so tell dump_object_info to not recurse
         _scanner.dump_object_info(outf, next, recurse_depth=0)
-        for ref in gc.get_referents(next):
+        for ref in get_referents(next):
             if id(ref) not in seen:
                 pending.append(ref)
 
@@ -104,7 +105,7 @@ def get_recursive_size(obj):
             continue
         seen.add(id_item)
         total_size += size_of(item)
-        for child in gc.get_referents(item):
+        for child in get_referents(item):
             if id(child) not in seen:
                 last_item += 1
                 if len(pending) > last_item:
@@ -128,7 +129,7 @@ def get_recursive_items(obj):
             continue
         seen.add(id_item)
         all.append(item)
-        for child in gc.get_referents(item):
+        for child in get_referents(item):
             if id(child) not in seen:
                 last_item += 1
                 if len(pending) > last_item:

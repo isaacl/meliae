@@ -39,6 +39,11 @@ Py_ssize_t _size_of(PyObject *c_obj);
  */
 void _dump_object_info(FILE *out, PyObject *c_obj, PyObject *nodump, int recurse);
 
+/**
+ * Return a PyList of all objects referenced via tp_traverse.
+ */
+PyObject *_get_referents(PyObject *c_obj);
+
 
 #endif // _SCANNER_CORE_H_
 

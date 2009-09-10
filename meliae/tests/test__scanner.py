@@ -424,3 +424,10 @@ class TestDumpInfo(tests.TestCase):
         class MyOldClass:
             pass
         self.assertDumpInfo(MyOldClass)
+
+
+class TestGetReferents(tests.TestCase):
+
+    def test_list_referents(self):
+        l = ['one', 2, object(), 4.0]
+        self.assertEqual(gc.get_referents(l), _scanner.get_referents(l))

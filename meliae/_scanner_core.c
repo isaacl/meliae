@@ -155,7 +155,7 @@ _dump_if_no_traverse(PyObject *c_obj, void *val)
     /* Objects without traverse are simple things without refs, and built-in
      * types have a traverse, but they won't be part of gc.get_objects().
      */
-    if (c_obj->ob_type->tp_traverse == NULL
+    if (Py_TYPE(c_obj)->tp_traverse == NULL
         || (PyType_Check(c_obj)
             && !PyType_HasFeature((PyTypeObject*)c_obj, Py_TPFLAGS_HEAPTYPE)))
     {
@@ -301,19 +301,49 @@ _dump_object_info(FILE *out, PyObject *c_obj, PyObject *nodump, int recurse)
         fprintf(out, ", \"len\": %d", PyDict_Size(c_obj));
     }
     fprintf(out, ", \"refs\": [");
-    if (c_obj->ob_type->tp_traverse != NULL) {
+    if (Py_TYPE(c_obj)->tp_traverse != NULL) {
         info.first = 1;
-        c_obj->ob_type->tp_traverse(c_obj, _dump_reference, &info);
+        Py_TYPE(c_obj)->tp_traverse(c_obj, _dump_reference, &info);
     }
     fprintf(out, "]}\n");
-    if (c_obj->ob_type->tp_traverse != NULL && recurse != 0) {
+    if (Py_TYPE(c_obj)->tp_traverse != NULL && recurse != 0) {
         if (recurse == 2) { /* Always dump one layer deeper */
-            c_obj->ob_type->tp_traverse(c_obj, _dump_child, &info);
+            Py_TYPE(c_obj)->tp_traverse(c_obj, _dump_child, &info);
         } else if (recurse == 1) {
             /* strings and such aren't in gc.get_objects, so we need to dump
              * them when they are referenced.
              */
-            c_obj->ob_type->tp_traverse(c_obj, _dump_if_no_traverse, &info);
+            Py_TYPE(c_obj)->tp_traverse(c_obj, _dump_if_no_traverse, &info);
         }
     }
+}
+
+static int
+_append_object(PyObject *visiting, void* data)
+{
+    PyObject *lst;
+    lst = (PyObject *)data;
+    if (lst == NULL) {
+        return -1;
+    }
+    if (PyList_Append(data, visiting) == -1) {
+        return -1;
+    }
+    return 0;
+}
+/**
+ * Return a PyList of all objects referenced via tp_traverse.
+ */
+PyObject *_get_referents(PyObject *c_obj)
+{
+    PyObject *lst;
+
+    lst = PyList_New(0);
+    if (lst == NULL) {
+        return NULL;
+    }
+    if (Py_TYPE(c_obj)->tp_traverse != NULL) {
+        Py_TYPE(c_obj)->tp_traverse(c_obj, _append_object, lst);
+    }
+    return lst;
 }
