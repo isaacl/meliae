@@ -51,7 +51,7 @@ def open_file(filename):
         else:
             close_fds = True
         try:
-            process = subprocess.Popen(['gunzip', '-c', filename],
+            process = subprocess.Popen(['gzip', '-d', '-c', filename],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE, close_fds=close_fds)
         except OSError, e:
