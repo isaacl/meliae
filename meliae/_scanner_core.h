@@ -35,9 +35,15 @@
 Py_ssize_t _size_of(PyObject *c_obj);
 
 /**
+ * This callback will be used to dump more info to the user.
+ */
+typedef void (*write_callback)(void *callee_data, char *bytes, size_t len);
+
+/**
  * Write the information about this object to the file.
  */
-void _dump_object_info(FILE *out, PyObject *c_obj, PyObject *nodump, int recurse);
+void _dump_object_info(write_callback write, void *callee_data,
+                       PyObject *c_obj, PyObject *nodump, int recurse);
 
 /**
  * Return a PyList of all objects referenced via tp_traverse.

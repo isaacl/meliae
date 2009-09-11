@@ -20,6 +20,7 @@ cdef extern from "stdio.h":
     ctypedef long size_t
     ctypedef struct FILE:
         pass
+    FILE *stderr
     size_t fwrite(void *, size_t, size_t, FILE *)
     size_t fprintf(FILE *, char *, ...)
 
@@ -31,7 +32,10 @@ cdef extern from "Python.h":
 
 cdef extern from "_scanner_core.h":
     Py_ssize_t _size_of(object c_obj)
-    void _dump_object_info(FILE *, object c_obj, object nodump, int recurse)
+    ctypedef void (*write_callback)(void *callee_data, char *bytes, size_t len)
+
+    void _dump_object_info(write_callback write, void *callee_data,
+                           object c_obj, object nodump, int recurse)
     object _get_referents(object c_obj)
 
 
@@ -53,13 +57,38 @@ def size_of(obj):
     return _size_of(obj)
 
 
-def dump_object_info(object fp, object obj, object nodump=None, int recurse_depth=1):
-    cdef FILE *out
+cdef void _file_io_callback(void *callee_data, char *bytes, size_t len):
+    cdef FILE *file_cb
+    
+    file_cb = <FILE *>callee_data
+    fwrite(bytes, 1, len, file_cb)
 
-    out = PyFile_AsFile(fp)
-    if out == NULL:
+
+def dump_object_info(object out, object obj, object nodump=None,
+                     int recurse_depth=1):
+    """Dump the object information to the given output.
+
+    :param out: Either a File object, or a callable.
+        If a File object, we will write bytes to the underlying FILE*
+        Otherwise, we will call(str) with bytes as we build up the state of the
+        object. Note that a single call will not be a complete description, but
+        potentially a single character for formatting.
+    :param obj: The object to inspect
+    :param nodump: If supplied, this is a set() of objects that we want to
+        exclude from the dump file.
+    :param recurse_depth: 0 to only dump the supplied object
+       1 to dump the object and immediate neighbors that would not otherwise be
+       referenced (such as strings).
+       2 dump everything we find and continue recursing
+    """
+    cdef FILE *fp_out
+
+    fp_out = PyFile_AsFile(out)
+    if fp_out != NULL:
+        # This must be a callable
+        _dump_object_info(_file_io_callback, fp_out, obj, nodump, recurse_depth)
+    else:
         raise TypeError('not a file')
-    _dump_object_info(out, obj, nodump, recurse_depth)
 
 
 def get_referents(object obj):

@@ -39,10 +39,14 @@
 #endif
 
 struct ref_info {
-    FILE *out;
+    write_callback write;
+    void *data;
     int first;
     PyObject *nodump;
 };
+
+void _dump_object_to_ref_info(struct ref_info *info, PyObject *c_obj,
+                              int recurse);
 
 Py_ssize_t
 _basic_object_size(PyObject *c_obj)
@@ -137,16 +141,36 @@ _size_of(PyObject *c_obj)
 }
 
 
+/* TODO: figure out the GCC magic macro to make it clear this is essentially a
+ *       printf function. So that it checks argument types, etc.
+ */
+void
+_write_to_ref_info(struct ref_info *info, const char *fmt_string, ...)
+{
+    char temp_buf[1024] = {0};
+    va_list args;
+    size_t n_bytes;
+
+    va_start(args, fmt_string);
+    n_bytes = vsnprintf(temp_buf, 1024, fmt_string, args);
+    va_end(args);
+    info->write(info->data, temp_buf, n_bytes);
+}
+
 int
 _dump_reference(PyObject *c_obj, void* val)
 {
-    struct ref_info *out;
-    out = (struct ref_info*)val;
-    if (out->first) {
-        out->first = 0;
-        fprintf(out->out, "%lu", (unsigned long)c_obj);
+    struct ref_info *info;
+    info = (struct ref_info*)val;
+    /* TODO: This is casting a pointer into an unsigned long, which we assume
+     *       is 'long enough'. We probably should really be using uintptr_t or
+     *       something like that.
+     */
+    if (info->first) {
+        info->first = 0;
+        _write_to_ref_info(info, "%lu", (unsigned long)c_obj);
     } else {
-        fprintf(out->out, ", %lu", (unsigned long)c_obj);
+        _write_to_ref_info(info, ", %lu", (unsigned long)c_obj);
     }
     return 0;
 }
@@ -158,7 +182,7 @@ _dump_child(PyObject *c_obj, void *val)
     struct ref_info *info;
     info = (struct ref_info *)val;
     // The caller has asked us to dump self, but no recursive children
-    _dump_object_info(info->out, c_obj, info->nodump, 0);
+    _dump_object_to_ref_info(info, c_obj, 0);
     return 0;
 }
 
@@ -175,7 +199,7 @@ _dump_if_no_traverse(PyObject *c_obj, void *val)
         || (PyType_Check(c_obj)
             && !PyType_HasFeature((PyTypeObject*)c_obj, Py_TPFLAGS_HEAPTYPE)))
     {
-        _dump_object_info(info->out, c_obj, info->nodump, 0);
+        _dump_object_to_ref_info(info, c_obj, 0);
     }
     // We know that it is safe to recurse here, because tp_traverse is NULL
     return 0;
@@ -183,48 +207,50 @@ _dump_if_no_traverse(PyObject *c_obj, void *val)
 
 
 void
-_dump_json_c_string(FILE *out, const char *buf, Py_ssize_t len)
+_dump_json_c_string(struct ref_info *info, const char *buf, Py_ssize_t len)
 {
     Py_ssize_t i;
     char c;
 
-    // Never try to dump more than this many chars
+    // Never try to dump more than 100 chars
     if (len == -1) {
         len = strlen(buf);
     }
     if (len > 100) {
         len = 100;
     }
-    fprintf(out, "\"");
+    // TODO: consider writing to a small memory buffer, rather that writing
+    //       repeatedly to the callback. We know the maximum write size is
+    //       6*100+2 for all unicode chars + the json quote chars.
+    _write_to_ref_info(info, "\"");
     for (i = 0; i < len; ++i) {
         c = buf[i];
         if (c <= 0x1f || c > 0x7e) { // use the unicode escape sequence
-            fprintf(out, "\\u00%02x", ((unsigned short)c & 0xFF));
+            _write_to_ref_info(info, "\\u00%02x", ((unsigned short)c & 0xFF));
         } else if (c == '\\' || c == '/' || c == '"') {
-            fprintf(out, "\\%c", c);
+            _write_to_ref_info(info, "\\%c", c);
         } else {
-            fprintf(out, "%c", c);
+            _write_to_ref_info(info, "%c", c);
         }
     }
-    fprintf(out, "\"");
+    _write_to_ref_info(info, "\"");
 }
 
 void
-_dump_string(FILE *out, PyObject *c_obj)
+_dump_string(struct ref_info *info, PyObject *c_obj)
 {
-    // TODO: consider writing to a small memory buffer, before writing to disk
     Py_ssize_t str_size;
     char *str_buf;
 
     str_buf = PyString_AS_STRING(c_obj);
     str_size = PyString_GET_SIZE(c_obj);
 
-    _dump_json_c_string(out, str_buf, str_size);
+    _dump_json_c_string(info, str_buf, str_size);
 }
 
 
 void
-_dump_unicode(FILE *out, PyObject *c_obj)
+_dump_unicode(struct ref_info *info, PyObject *c_obj)
 {
     // TODO: consider writing to a small memory buffer, before writing to disk
     Py_ssize_t uni_size;
@@ -238,37 +264,55 @@ _dump_unicode(FILE *out, PyObject *c_obj)
     if (uni_size > 100) {
         uni_size = 100;
     }
-    fprintf(out, "\"");
+    _write_to_ref_info(info, "\"");
     for (i = 0; i < uni_size; ++i) {
         c = uni_buf[i];
         if (c <= 0x1f || c > 0x7e) {
-            fprintf(out, "\\u%04x", ((unsigned short)c & 0xFFFF));
+            _write_to_ref_info(info, "\\u%04x", ((unsigned short)c & 0xFFFF));
         } else if (c == '\\' || c == '/' || c == '"') {
-            fprintf(out, "\\%c", (unsigned char)c);
+            _write_to_ref_info(info, "\\%c", (unsigned char)c);
         } else {
-            fprintf(out, "%c", (unsigned char)c);
+            _write_to_ref_info(info, "%c", (unsigned char)c);
         }
     }
-    fprintf(out, "\"");
+    _write_to_ref_info(info, "\"");
 }
 
 
+void 
+_dump_object_info(write_callback write, void *callee_data,
+                  PyObject *c_obj, PyObject *nodump, int recurse)
+{
+    struct ref_info info;
+
+    info.write = write;
+    info.data = callee_data;
+    info.first = 1;
+    info.nodump = nodump;
+    if (nodump != NULL) {
+        Py_INCREF(nodump);
+    }
+    _dump_object_to_ref_info(&info, c_obj, recurse);
+    if (info.nodump != NULL) {
+        Py_DECREF(nodump);
+    }
+}
+
 void
-_dump_object_info(FILE *out, PyObject *c_obj, PyObject *nodump, int recurse)
+_dump_object_to_ref_info(struct ref_info *info, PyObject *c_obj, int recurse)
 {
     Py_ssize_t size;
-    struct ref_info info;
     int retval;
 
-    info.out = out;
-    info.nodump = nodump; /* Stealing the reference, but not permanently */
-
-    if (nodump != Py_None && PyAnySet_Check(nodump)) {
-        if (c_obj == nodump) {
+    if (info->nodump != NULL && 
+        info->nodump != Py_None
+        && PyAnySet_Check(info->nodump))
+    {
+        if (c_obj == info->nodump) {
             /* Don't dump the 'nodump' set. */
             return;
         }
-        retval = PySet_Contains(nodump, c_obj);
+        retval = PySet_Contains(info->nodump, c_obj);
         if (retval == 1) {
             /* This object is part of the no-dump set, don't dump the object */
             return;
@@ -279,57 +323,58 @@ _dump_object_info(FILE *out, PyObject *c_obj, PyObject *nodump, int recurse)
     }
 
     size = _size_of(c_obj);
-    fprintf(out, "{\"address\": %lu, \"type\": ", (unsigned long)c_obj);
-    _dump_json_c_string(out, c_obj->ob_type->tp_name, -1);
-    fprintf(out, ", \"size\": " SSIZET_FMT, _size_of(c_obj));
+    _write_to_ref_info(info, "{\"address\": %lu, \"type\": ",
+                       (unsigned long)c_obj);
+    _dump_json_c_string(info, c_obj->ob_type->tp_name, -1);
+    _write_to_ref_info(info, ", \"size\": " SSIZET_FMT, _size_of(c_obj));
     //  HANDLE __name__
     if (PyModule_Check(c_obj)) {
-        fprintf(out, ", \"name\": ");
-        _dump_json_c_string(out, PyModule_GetName(c_obj), -1);
+        _write_to_ref_info(info, ", \"name\": ");
+        _dump_json_c_string(info, PyModule_GetName(c_obj), -1);
     } else if (PyFunction_Check(c_obj)) {
-        fprintf(out, ", \"name\": ");
-        _dump_string(out, ((PyFunctionObject *)c_obj)->func_name);
+        _write_to_ref_info(info, ", \"name\": ");
+        _dump_string(info, ((PyFunctionObject *)c_obj)->func_name);
     } else if (PyType_Check(c_obj)) {
-        fprintf(out, ", \"name\": ");
-        _dump_json_c_string(out, ((PyTypeObject *)c_obj)->tp_name, -1);
+        _write_to_ref_info(info, ", \"name\": ");
+        _dump_json_c_string(info, ((PyTypeObject *)c_obj)->tp_name, -1);
     } else if (PyClass_Check(c_obj)) {
         /* Old style class */
-        fprintf(out, ", \"name\": ");
-        _dump_string(out, ((PyClassObject *)c_obj)->cl_name);
+        _write_to_ref_info(info, ", \"name\": ");
+        _dump_string(info, ((PyClassObject *)c_obj)->cl_name);
     }
     if (PyString_Check(c_obj)) {
-        fprintf(out, ", \"len\": " SSIZET_FMT, PyString_GET_SIZE(c_obj));
-        fprintf(out, ", \"value\": ");
-        _dump_string(out, c_obj);
+        _write_to_ref_info(info, ", \"len\": " SSIZET_FMT, PyString_GET_SIZE(c_obj));
+        _write_to_ref_info(info, ", \"value\": ");
+        _dump_string(info, c_obj);
     } else if (PyUnicode_Check(c_obj)) {
-        fprintf(out, ", \"len\": " SSIZET_FMT, PyUnicode_GET_SIZE(c_obj));
-        fprintf(out, ", \"value\": ");
-        _dump_unicode(out, c_obj);
+        _write_to_ref_info(info, ", \"len\": " SSIZET_FMT, PyUnicode_GET_SIZE(c_obj));
+        _write_to_ref_info(info, ", \"value\": ");
+        _dump_unicode(info, c_obj);
     } else if (PyInt_CheckExact(c_obj)) {
-        fprintf(out, ", \"value\": %ld", PyInt_AS_LONG(c_obj));
+        _write_to_ref_info(info, ", \"value\": %ld", PyInt_AS_LONG(c_obj));
     } else if (PyTuple_Check(c_obj)) {
-        fprintf(out, ", \"len\": " SSIZET_FMT, PyTuple_GET_SIZE(c_obj));
+        _write_to_ref_info(info, ", \"len\": " SSIZET_FMT, PyTuple_GET_SIZE(c_obj));
     } else if (PyList_Check(c_obj)) {
-        fprintf(out, ", \"len\": " SSIZET_FMT, PyList_GET_SIZE(c_obj));
+        _write_to_ref_info(info, ", \"len\": " SSIZET_FMT, PyList_GET_SIZE(c_obj));
     } else if (PyAnySet_Check(c_obj)) {
-        fprintf(out, ", \"len\": " SSIZET_FMT, PySet_GET_SIZE(c_obj));
+        _write_to_ref_info(info, ", \"len\": " SSIZET_FMT, PySet_GET_SIZE(c_obj));
     } else if (PyDict_Check(c_obj)) {
-        fprintf(out, ", \"len\": " SSIZET_FMT, PyDict_Size(c_obj));
+        _write_to_ref_info(info, ", \"len\": " SSIZET_FMT, PyDict_Size(c_obj));
     }
-    fprintf(out, ", \"refs\": [");
+    _write_to_ref_info(info, ", \"refs\": [");
     if (Py_TYPE(c_obj)->tp_traverse != NULL) {
-        info.first = 1;
-        Py_TYPE(c_obj)->tp_traverse(c_obj, _dump_reference, &info);
+        info->first = 1;
+        Py_TYPE(c_obj)->tp_traverse(c_obj, _dump_reference, info);
     }
-    fprintf(out, "]}\n");
+    _write_to_ref_info(info, "]}\n");
     if (Py_TYPE(c_obj)->tp_traverse != NULL && recurse != 0) {
         if (recurse == 2) { /* Always dump one layer deeper */
-            Py_TYPE(c_obj)->tp_traverse(c_obj, _dump_child, &info);
+            Py_TYPE(c_obj)->tp_traverse(c_obj, _dump_child, info);
         } else if (recurse == 1) {
             /* strings and such aren't in gc.get_objects, so we need to dump
              * them when they are referenced.
              */
-            Py_TYPE(c_obj)->tp_traverse(c_obj, _dump_if_no_traverse, &info);
+            Py_TYPE(c_obj)->tp_traverse(c_obj, _dump_if_no_traverse, info);
         }
     }
 }
