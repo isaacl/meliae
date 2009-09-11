@@ -39,6 +39,14 @@
 #  define SSIZET_FMT "%zd"
 #endif
 
+#if defined(__GNUC__)
+#   define inline __inline__
+#elif defined(_MSC_VER)
+#   define inline __inline
+#else
+#   define inline
+#endif
+
 struct ref_info {
     write_callback write;
     void *data;
@@ -148,7 +156,7 @@ _size_of(PyObject *c_obj)
 }
 
 
-void
+static void
 _write_to_ref_info(struct ref_info *info, const char *fmt_string, ...)
 {
     char temp_buf[1024] = {0};
@@ -162,7 +170,7 @@ _write_to_ref_info(struct ref_info *info, const char *fmt_string, ...)
 }
 
 
-void
+static inline void
 _write_static_to_info(struct ref_info *info, const char data[])
 {
     /* These are static strings, do we need to do strlen() each time? */
@@ -222,7 +230,7 @@ _dump_if_no_traverse(PyObject *c_obj, void *val)
 }
 
 
-void
+static inline void
 _dump_json_c_string(struct ref_info *info, const char *buf, Py_ssize_t len)
 {
     Py_ssize_t i;
@@ -236,9 +244,6 @@ _dump_json_c_string(struct ref_info *info, const char *buf, Py_ssize_t len)
     if (len > 100) {
         len = 100;
     }
-    // TODO: consider writing to a small memory buffer, rather that writing
-    //       repeatedly to the callback. We know the maximum write size is
-    //       6*100+2 for all unicode chars + the json quote chars.
     ptr = out_buf;
     end = out_buf + 1024;
     *ptr++ = '"';
@@ -346,6 +351,10 @@ _dump_object_to_ref_info(struct ref_info *info, PyObject *c_obj, int recurse)
             /* Don't dump the 'nodump' set. */
             return;
         }
+        /* note this isn't exactly what we want. It checks for equality, not
+         * the exact object. However, for what it is used for, it is often
+         * 'close enough'.
+         */
         retval = PySet_Contains(info->nodump, c_obj);
         if (retval == 1) {
             /* This object is part of the no-dump set, don't dump the object */
