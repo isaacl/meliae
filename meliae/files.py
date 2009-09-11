@@ -64,17 +64,19 @@ def open_file(filename):
         return process.stdout, process.terminate
 
 
+def _stream_file(filename, child):
+    gzip_source = gzip.GzipFile(filename, 'rb')
+    for line in gzip_source:
+        child.send(line)
+    child.send(None)
+
+
 def _open_mprocess(filename):
     if multiprocessing is None:
         # can't multiprocess, use inprocess gzip.
         return gzip.GzipFile(filename, mode='rb'), None
     parent, child = multiprocessing.Pipe(False)
-    def stream_file(filename, child):
-        gzip_source = gzip.GzipFile(filename, 'rb')
-        for line in gzip_source:
-            child.send(line)
-        child.send(None)
-    process = multiprocessing.Process(target=stream_file, args=(filename, child))
+    process = multiprocessing.Process(target=_stream_file, args=(filename, child))
     process.start()
     def iter_pipe():
         while True:
