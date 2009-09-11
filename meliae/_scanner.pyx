@@ -65,6 +65,7 @@ cdef void _file_io_callback(void *callee_data, char *bytes, size_t len):
     file_cb = <FILE *>callee_data
     fwrite(bytes, 1, len, file_cb)
 
+
 cdef void _callable_callback(void *callee_data, char *bytes, size_t len):
     callable = <object>callee_data
 

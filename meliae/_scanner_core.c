@@ -34,6 +34,7 @@
 #  else
 #    define SSIZET_FMT "%d"
 #  endif
+#  define snprintf _snprintf
 #else
 #  define SSIZET_FMT "%zd"
 #endif
@@ -164,6 +165,9 @@ int
 _dump_reference(PyObject *c_obj, void* val)
 {
     struct ref_info *info;
+    size_t n_bytes;
+    char buf[24] = {0}; /* it seems that 64-bit long fits in 20 decimals */
+
     info = (struct ref_info*)val;
     /* TODO: This is casting a pointer into an unsigned long, which we assume
      *       is 'long enough'. We probably should really be using uintptr_t or
@@ -171,10 +175,11 @@ _dump_reference(PyObject *c_obj, void* val)
      */
     if (info->first) {
         info->first = 0;
-        _write_to_ref_info(info, "%lu", (unsigned long)c_obj);
+        n_bytes = snprintf(buf, 24, "%lu", (unsigned long)c_obj);
     } else {
-        _write_to_ref_info(info, ", %lu", (unsigned long)c_obj);
+        n_bytes = snprintf(buf, 24, ", %lu", (unsigned long)c_obj);
     }
+    info->write(info->data, buf, n_bytes);
     return 0;
 }
 
@@ -213,7 +218,8 @@ void
 _dump_json_c_string(struct ref_info *info, const char *buf, Py_ssize_t len)
 {
     Py_ssize_t i;
-    char c;
+    char c, *ptr, *end;
+    char out_buf[1024] = {0};
 
     // Never try to dump more than 100 chars
     if (len == -1) {
@@ -225,18 +231,26 @@ _dump_json_c_string(struct ref_info *info, const char *buf, Py_ssize_t len)
     // TODO: consider writing to a small memory buffer, rather that writing
     //       repeatedly to the callback. We know the maximum write size is
     //       6*100+2 for all unicode chars + the json quote chars.
-    _write_to_ref_info(info, "\"");
+    ptr = out_buf;
+    end = out_buf + 1024;
+    *ptr++ = '"';
     for (i = 0; i < len; ++i) {
         c = buf[i];
         if (c <= 0x1f || c > 0x7e) { // use the unicode escape sequence
-            _write_to_ref_info(info, "\\u00%02x", ((unsigned short)c & 0xFF));
+            ptr += snprintf(ptr, end-ptr, "\\u00%02x",
+                            ((unsigned short)c & 0xFF));
         } else if (c == '\\' || c == '/' || c == '"') {
-            _write_to_ref_info(info, "\\%c", c);
+            *ptr++ = '\\';
+            *ptr++ = 'c';
         } else {
-            _write_to_ref_info(info, "%c", c);
+            *ptr++ = c;
         }
     }
-    _write_to_ref_info(info, "\"");
+    *ptr++ = '"';
+    if (ptr >= end) {
+        /* Abort somehow */
+    }
+    info->write(info->data, out_buf, ptr-out_buf);
 }
 
 void
