@@ -161,6 +161,14 @@ _write_to_ref_info(struct ref_info *info, const char *fmt_string, ...)
     info->write(info->data, temp_buf, n_bytes);
 }
 
+
+void
+_write_static_to_info(struct ref_info *info, const char data[])
+{
+    /* These are static strings, do we need to do strlen() each time? */
+    info->write(info->data, data, strlen(data));
+}
+
 int
 _dump_reference(PyObject *c_obj, void* val)
 {
@@ -273,6 +281,7 @@ _dump_unicode(struct ref_info *info, PyObject *c_obj)
     Py_ssize_t uni_size;
     Py_UNICODE *uni_buf, c;
     Py_ssize_t i;
+    char out_buf[1024] = {0}, *ptr, *end;
 
     uni_buf = PyUnicode_AS_UNICODE(c_obj);
     uni_size = PyUnicode_GET_SIZE(c_obj);
@@ -281,18 +290,26 @@ _dump_unicode(struct ref_info *info, PyObject *c_obj)
     if (uni_size > 100) {
         uni_size = 100;
     }
-    _write_to_ref_info(info, "\"");
+    ptr = out_buf;
+    end = out_buf + 1024;
+    *ptr++ = '"';
     for (i = 0; i < uni_size; ++i) {
         c = uni_buf[i];
         if (c <= 0x1f || c > 0x7e) {
-            _write_to_ref_info(info, "\\u%04x", ((unsigned short)c & 0xFFFF));
+            ptr += snprintf(ptr, end-ptr, "\\u%04x",
+                            ((unsigned short)c & 0xFFFF));
         } else if (c == '\\' || c == '/' || c == '"') {
-            _write_to_ref_info(info, "\\%c", (unsigned char)c);
+            *ptr++ = '\\';
+            *ptr++ = (char)c;
         } else {
-            _write_to_ref_info(info, "%c", (unsigned char)c);
+            *ptr++ = (char)c;
         }
     }
-    _write_to_ref_info(info, "\"");
+    *ptr++ = '"';
+    if (ptr >= end) {
+        /* We should fail here */
+    }
+    info->write(info->data, out_buf, ptr-out_buf);
 }
 
 
@@ -346,26 +363,26 @@ _dump_object_to_ref_info(struct ref_info *info, PyObject *c_obj, int recurse)
     _write_to_ref_info(info, ", \"size\": " SSIZET_FMT, _size_of(c_obj));
     //  HANDLE __name__
     if (PyModule_Check(c_obj)) {
-        _write_to_ref_info(info, ", \"name\": ");
+        _write_static_to_info(info, ", \"name\": ");
         _dump_json_c_string(info, PyModule_GetName(c_obj), -1);
     } else if (PyFunction_Check(c_obj)) {
-        _write_to_ref_info(info, ", \"name\": ");
+        _write_static_to_info(info, ", \"name\": ");
         _dump_string(info, ((PyFunctionObject *)c_obj)->func_name);
     } else if (PyType_Check(c_obj)) {
-        _write_to_ref_info(info, ", \"name\": ");
+        _write_static_to_info(info, ", \"name\": ");
         _dump_json_c_string(info, ((PyTypeObject *)c_obj)->tp_name, -1);
     } else if (PyClass_Check(c_obj)) {
         /* Old style class */
-        _write_to_ref_info(info, ", \"name\": ");
+        _write_static_to_info(info, ", \"name\": ");
         _dump_string(info, ((PyClassObject *)c_obj)->cl_name);
     }
     if (PyString_Check(c_obj)) {
         _write_to_ref_info(info, ", \"len\": " SSIZET_FMT, PyString_GET_SIZE(c_obj));
-        _write_to_ref_info(info, ", \"value\": ");
+        _write_static_to_info(info, ", \"value\": ");
         _dump_string(info, c_obj);
     } else if (PyUnicode_Check(c_obj)) {
         _write_to_ref_info(info, ", \"len\": " SSIZET_FMT, PyUnicode_GET_SIZE(c_obj));
-        _write_to_ref_info(info, ", \"value\": ");
+        _write_static_to_info(info, ", \"value\": ");
         _dump_unicode(info, c_obj);
     } else if (PyInt_CheckExact(c_obj)) {
         _write_to_ref_info(info, ", \"value\": %ld", PyInt_AS_LONG(c_obj));
@@ -378,12 +395,12 @@ _dump_object_to_ref_info(struct ref_info *info, PyObject *c_obj, int recurse)
     } else if (PyDict_Check(c_obj)) {
         _write_to_ref_info(info, ", \"len\": " SSIZET_FMT, PyDict_Size(c_obj));
     }
-    _write_to_ref_info(info, ", \"refs\": [");
+    _write_static_to_info(info, ", \"refs\": [");
     if (Py_TYPE(c_obj)->tp_traverse != NULL) {
         info->first = 1;
         Py_TYPE(c_obj)->tp_traverse(c_obj, _dump_reference, info);
     }
-    _write_to_ref_info(info, "]}\n");
+    _write_static_to_info(info, "]}\n");
     if (Py_TYPE(c_obj)->tp_traverse != NULL && recurse != 0) {
         if (recurse == 2) { /* Always dump one layer deeper */
             Py_TYPE(c_obj)->tp_traverse(c_obj, _dump_child, info);
