@@ -85,6 +85,8 @@ def main(args):
             outfile = sys.stdout
         else:
             infile, cleanup = files.open_file(args[0])
+            if cleanup is not None:
+                cleanups.append(cleanup)
             if isinstance(infile, file):
                 # pipes are files, but 0 isn't useful.
                 insize = os.fstat(infile.fileno()).st_size or None

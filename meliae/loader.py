@@ -426,6 +426,9 @@ def remove_expensive_references(source, total_objs=0, show_progress=False):
     null_memobj = _loader.MemObject(0, '<ex-reference>', 0, [])
     if not seen_zero:
         yield (True, null_memobj)
+    if show_progress and total_objs == 0:
+        total_objs = idx
+        total_steps = total_objs * 2
     for idx, obj in enumerate(source()):
         if show_progress and idx & 0x1ff == 0:
             sys.stderr.write('removing %d expensive refs... %8d / %8d   \r'
