@@ -31,7 +31,7 @@ def open_file(filename):
     
     :return: An iterator of lines, and a cleanup function.
     """
-    source = open(filename, 'r')
+    source = open(filename, 'rb')
     gzip_source = gzip.GzipFile(mode='rb', fileobj=source)
     try:
         line = gzip_source.readline()
@@ -42,6 +42,8 @@ def open_file(filename):
         source.seek(0)
         return source, None
     else:
+        # We don't need these anymore, so close them out in case the rest of
+        # the code raises an exception.
         gzip_source.close()
         source.close()
         # a gzip file
