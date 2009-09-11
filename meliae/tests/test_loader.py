@@ -90,6 +90,30 @@ class TestLoad(tests.TestCase):
         objs[1]
 
 
+class TestRemoveExpensiveReferences(tests.TestCase):
+
+    def test_remove_expensive_references(self):
+        lines = list(_example_dump)
+        lines.append('{"address": 8, "type": "module", "size": 12'
+                     ', "name": "mymod", "refs": [9]}')
+        lines.append('{"address": 9, "type": "dict", "size": 124'
+                     ', "refs": [10, 11]}')
+        lines.append('{"address": 10, "type": "module", "size": 12'
+                     ', "name": "mod2", "refs": [12]}')
+        lines.append('{"address": 11, "type": "str", "size": 27'
+                     ', "value": "boo", "refs": []}')
+        lines.append('{"address": 12, "type": "dict", "size": 124'
+                     ', "refs": []}')
+        source = lambda:loader.iter_objs(lines)
+        mymod_dict = list(source())[8]
+        self.assertEqual([10, 11], mymod_dict.ref_list)
+        result = list(loader.remove_expensive_references(source))
+        null_obj = result[0][1]
+        self.assertEqual(0, null_obj.address)
+        self.assertEqual('<ex-reference>', null_obj.type_str)
+        self.assertEqual([11, 0], result[9][1].ref_list)
+
+
 class TestMemObj(tests.TestCase):
 
     def test_to_json(self):

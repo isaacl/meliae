@@ -225,69 +225,12 @@ class ObjManager(object):
         We filter out any reference to modules, frames, types, function globals
         pointers & LRU sideways references.
         """
-        null_memobj = _loader.MemObject(0, '<ex-reference>', 0, [])
-        self.objs[0] = null_memobj
-        # First pass, find objects we don't want to reference any more
-        noref_objs = _intset.IDSet()
-        lru_objs = _intset.IDSet()
+        source = lambda:self.objs.itervalues()
         total_objs = len(self.objs)
-        total_steps = total_objs * 2
-        for idx, obj in enumerate(self.objs.itervalues()):
-            # 'module's have a single __dict__, which tends to refer to other
-            # modules. As you start tracking into that, you end up getting into
-            # reference cycles, etc, which generally ends up referencing every
-            # object in memory.
-            # 'frame' also tends to be self referential, and a single frame
-            # ends up referencing the entire current state
-            # 'type' generally is self referential through several attributes.
-            # __bases__ means we recurse all the way up to object, and object
-            # has __subclasses__, which means we recurse down into all types.
-            # In general, not helpful for debugging memory consumption
-            if self.show_progress and idx & 0x1ff == 0:
-                sys.stderr.write('finding expensive refs... %8d / %8d    \r'
-                                 % (idx, total_steps))
-            if obj.type_str in ('module', 'frame', 'type'):
-                noref_objs.add(obj.address)
-            if obj.type_str == '_LRUNode':
-                lru_objs.add(obj.address)
-        # Second pass, any object which refers to something in noref_objs will
-        # have that reference removed, and replaced with the null_memobj
-        num_expensive = len(noref_objs)
-        for idx, obj in enumerate(self.objs.itervalues()):
-            if self.show_progress and idx & 0x1ff == 0:
-                sys.stderr.write('removing %d expensive refs... %8d / %8d   \r'
-                                 % (num_expensive, idx + total_objs,
-                                    total_steps))
-            if obj.type_str == 'function':
-                # Functions have a reference to 'globals' which is not very
-                # helpful for having a clear understanding of what is going on
-                # especially since the function itself is in its own globals
-                # XXX: This is probably not a guaranteed order, but currently
-                #       func_traverse returns:
-                #   func_code, func_globals, func_module, func_defaults,
-                #   func_doc, func_name, func_dict, func_closure
-                # We want to remove the reference to globals and module
-                refs = list(obj.ref_list)
-                obj.ref_list = refs[:1] + refs[3:] + [0]
-                continue
-            if obj.type_str == '_LRUNode':
-                # We remove the 'sideways' references
-                obj.ref_list = [ref for ref in obj.ref_list
-                                     if ref not in lru_objs]
-                continue
-            for ref in obj.ref_list:
-                if ref in noref_objs:
-                    break
-            else:
-                # No bad references, keep going
-                continue
-            new_ref_list = [ref for ref in obj.ref_list
-                                 if ref not in noref_objs]
-            new_ref_list.append(0)
-            obj.ref_list = new_ref_list
-        if self.show_progress:
-            sys.stderr.write('removed %d expensive refs from %d objs%s\n'
-                             % (num_expensive, total_objs, ' '*20))
+        for changed, obj in remove_expensive_references(source, total_objs,
+            self.show_progress):
+            if changed:
+                self.objs[obj.address] = obj
 
     def compute_total_size(self):
         """This computes the total bytes referenced from this object."""
@@ -431,3 +374,94 @@ def _load(source, using_json, show_prog, input_size):
         objs[memobj.address] = memobj
     # _fill_total_size(objs)
     return ObjManager(objs, show_progress=show_prog)
+
+
+def remove_expensive_references(source, total_objs=0, show_progress=False):
+    """Filter out references that are mere houskeeping links.
+
+    module.__dict__ tends to reference lots of other modules, which in turn
+    brings in the global reference cycle. Going further
+    function.__globals__ references module.__dict__, so it *too* ends up in
+    the global cycle. Generally these references aren't interesting, simply
+    because they end up referring to *everything*.
+
+    We filter out any reference to modules, frames, types, function globals
+    pointers & LRU sideways references.
+
+    :param source: A callable that returns an iterator of MemObjects. This
+        will be called twice.
+    :param total_objs: The total objects to be filtered, if known. If
+        show_progress is False or the count of objects is unknown, 0.
+    :return: An iterator of (changed, MemObject) objects with expensive
+        references removed.
+    """
+    # First pass, find objects we don't want to reference any more
+    noref_objs = _intset.IDSet()
+    lru_objs = _intset.IDSet()
+    total_steps = total_objs * 2
+    seen_zero = False
+    for idx, obj in enumerate(source()):
+        # 'module's have a single __dict__, which tends to refer to other
+        # modules. As you start tracking into that, you end up getting into
+        # reference cycles, etc, which generally ends up referencing every
+        # object in memory.
+        # 'frame' also tends to be self referential, and a single frame
+        # ends up referencing the entire current state
+        # 'type' generally is self referential through several attributes.
+        # __bases__ means we recurse all the way up to object, and object
+        # has __subclasses__, which means we recurse down into all types.
+        # In general, not helpful for debugging memory consumption
+        if show_progress and idx & 0x1ff == 0:
+            sys.stderr.write('finding expensive refs... %8d / %8d    \r'
+                             % (idx, total_steps))
+        if obj.type_str in ('module', 'frame', 'type'):
+            noref_objs.add(obj.address)
+        if obj.type_str == '_LRUNode':
+            lru_objs.add(obj.address)
+        if obj.address == 0:
+            seen_zero = True
+    # Second pass, any object which refers to something in noref_objs will
+    # have that reference removed, and replaced with the null_memobj
+    num_expensive = len(noref_objs)
+    null_memobj = _loader.MemObject(0, '<ex-reference>', 0, [])
+    if not seen_zero:
+        yield (True, null_memobj)
+    for idx, obj in enumerate(source()):
+        if show_progress and idx & 0x1ff == 0:
+            sys.stderr.write('removing %d expensive refs... %8d / %8d   \r'
+                             % (num_expensive, idx + total_objs,
+                                total_steps))
+        if obj.type_str == 'function':
+            # Functions have a reference to 'globals' which is not very
+            # helpful for having a clear understanding of what is going on
+            # especially since the function itself is in its own globals
+            # XXX: This is probably not a guaranteed order, but currently
+            #       func_traverse returns:
+            #   func_code, func_globals, func_module, func_defaults,
+            #   func_doc, func_name, func_dict, func_closure
+            # We want to remove the reference to globals and module
+            refs = list(obj.ref_list)
+            obj.ref_list = refs[:1] + refs[3:] + [0]
+            yield (True, obj)
+            continue
+        elif obj.type_str == '_LRUNode':
+            # We remove the 'sideways' references
+            obj.ref_list = [ref for ref in obj.ref_list
+                                 if ref not in lru_objs]
+            yield (True, obj)
+            continue
+        for ref in obj.ref_list:
+            if ref in noref_objs:
+                break
+        else:
+            # No bad references, keep going
+            yield (False, obj)
+            continue
+        new_ref_list = [ref for ref in obj.ref_list
+                             if ref not in noref_objs]
+        new_ref_list.append(0)
+        obj.ref_list = new_ref_list
+        yield (True, obj)
+    if show_progress:
+        sys.stderr.write('removed %d expensive refs from %d objs%s\n'
+                         % (num_expensive, total_objs, ' '*20))
