@@ -340,7 +340,11 @@ class TestDumpInfo(tests.TestCase):
         t_file = getattr(t, 'file', t)
         _scanner.dump_object_info(t_file, obj, nodump=nodump)
         t.seek(0)
-        self.assertEqual(py_dump_object_info(obj, nodump=nodump), t.read())
+        as_bytes = t.read()
+        self.assertEqual(py_dump_object_info(obj, nodump=nodump), as_bytes)
+        as_list = []
+        _scanner.dump_object_info(as_list.append, obj, nodump=nodump)
+        self.assertEqual(as_bytes, ''.join(as_list))
 
     def test_dump_int(self):
         self.assertDumpInfo(1)

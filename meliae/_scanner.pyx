@@ -29,6 +29,8 @@ cdef extern from "Python.h":
     int Py_UNICODE_SIZE
     ctypedef struct PyGC_Head:
         pass
+    object PyString_FromStringAndSize(char *, Py_ssize_t)
+
 
 cdef extern from "_scanner_core.h":
     Py_ssize_t _size_of(object c_obj)
@@ -63,6 +65,12 @@ cdef void _file_io_callback(void *callee_data, char *bytes, size_t len):
     file_cb = <FILE *>callee_data
     fwrite(bytes, 1, len, file_cb)
 
+cdef void _callable_callback(void *callee_data, char *bytes, size_t len):
+    callable = <object>callee_data
+
+    s = PyString_FromStringAndSize(bytes, len)
+    callable(s)
+
 
 def dump_object_info(object out, object obj, object nodump=None,
                      int recurse_depth=1):
@@ -72,7 +80,7 @@ def dump_object_info(object out, object obj, object nodump=None,
         If a File object, we will write bytes to the underlying FILE*
         Otherwise, we will call(str) with bytes as we build up the state of the
         object. Note that a single call will not be a complete description, but
-        potentially a single character for formatting.
+        potentially a single character of the final formatted string.
     :param obj: The object to inspect
     :param nodump: If supplied, this is a set() of objects that we want to
         exclude from the dump file.
@@ -88,7 +96,7 @@ def dump_object_info(object out, object obj, object nodump=None,
         # This must be a callable
         _dump_object_info(_file_io_callback, fp_out, obj, nodump, recurse_depth)
     else:
-        raise TypeError('not a file')
+        _dump_object_info(_callable_callback, <void *>out, obj, nodump, recurse_depth)
 
 
 def get_referents(object obj):
