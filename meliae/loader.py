@@ -19,12 +19,7 @@
 Currently requires simplejson to parse.
 """
 
-import gzip
 import math
-try:
-    import multiprocessing
-except ImportError:
-    nultiprocessing = None
 import os
 import re
 import sys

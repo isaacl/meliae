@@ -17,6 +17,7 @@
 """Read back in a dump file and process it"""
 
 import gzip
+import os
 import sys
 import tempfile
 
@@ -79,15 +80,23 @@ class TestLoad(tests.TestCase):
         objs = loader.load(_example_dump, show_prog=False)
 
     def test_load_compressed(self):
-        t = tempfile.NamedTemporaryFile(prefix='meliae-')
-        content = gzip.GzipFile(mode='wb', compresslevel=6, fileobj=t)
-        for line in _example_dump:
-            content.write(line + '\n')
-        content.flush()
-        content.close()
-        t.flush()
-        objs = loader.load(t.name, show_prog=False).objs
-        objs[1]
+        # unfortunately NamedTemporaryFile's cannot be re-opened on Windows
+        fd, name = tempfile.mkstemp(prefix='meliae-')
+        f = os.fdopen(fd, 'wb')
+        try:
+            content = gzip.GzipFile(mode='wb', compresslevel=6, fileobj=f)
+            for line in _example_dump:
+                content.write(line + '\n')
+            content.flush()
+            content.close()
+            del content
+            f.close()
+            objs = loader.load(name, show_prog=False).objs
+            objs[1]
+        finally:
+            f.close()
+            os.remove(name)
+            
 
 
 class TestRemoveExpensiveReferences(tests.TestCase):
@@ -121,6 +130,7 @@ class TestMemObj(tests.TestCase):
         objs.sort(key=lambda x:x.address)
         expected = sorted(_example_dump)
         self.assertEqual(expected, [obj.to_json() for obj in objs])
+
 
 class TestObjManager(tests.TestCase):
 

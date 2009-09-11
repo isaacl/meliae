@@ -21,8 +21,9 @@ import gzip
 try:
     import multiprocessing
 except ImportError:
-    nultiprocessing = None
+    multiprocessing = None
 import subprocess
+import sys
 
 
 def open_file(filename):
@@ -41,12 +42,18 @@ def open_file(filename):
         source.seek(0)
         return source, None
     else:
+        gzip_source.close()
+        source.close()
         # a gzip file
         # preference - a gzip subprocess
+        if sys.platform == 'win32':
+            close_fds = False # not supported
+        else:
+            close_fds = True
         try:
             process = subprocess.Popen(['gunzip', '-c', filename],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE, close_fds=True)
+                stderr=subprocess.PIPE, close_fds=close_fds)
         except OSError, e:
             if e.errno == errno.ENOENT:
                 # failing that, use another python process
@@ -56,13 +63,13 @@ def open_file(filename):
         process.stderr.close()
         return process.stdout, process.terminate
 
+
 def _open_mprocess(filename):
     if multiprocessing is None:
         # can't multiprocess, use inprocess gzip.
         return gzip.GzipFile(filename, mode='rb'), None
     parent, child = multiprocessing.Pipe(False)
     def stream_file(filename, child):
-        source = open(filename, 'r')
         gzip_source = gzip.GzipFile(filename, 'rb')
         for line in gzip_source:
             child.send(line)
