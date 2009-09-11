@@ -214,7 +214,7 @@ class ObjManager(object):
             obj.referrers = referrers.get(obj.address, ())
 
     def remove_expensive_references(self):
-        """Filter out 'expensive' references.
+        """Filter out references that are mere houskeeping links.
 
         module.__dict__ tends to reference lots of other modules, which in turn
         brings in the global reference cycle. Going further
@@ -222,7 +222,8 @@ class ObjManager(object):
         the global cycle. Generally these references aren't interesting, simply
         because they end up referring to *everything*.
 
-        So for now, we filter out any reference to a module.
+        We filter out any reference to modules, frames, types, function globals
+        pointers & LRU sideways references.
         """
         null_memobj = _loader.MemObject(0, '<ex-reference>', 0, [])
         self.objs[0] = null_memobj
@@ -347,8 +348,10 @@ def load(source, using_json=False, show_prog=True):
     :param source: If this is a string, we will open it as a file and read all
         objects. For any other type, we will simply iterate and parse objects
         out, so the object should be an iterator of json lines.
+    :param using_json: Use simplejson rather than the regex. This allows
+        arbitrary ordered json dicts to be parsed but still requires per-line
+        layout.
     """
-    tstart = time.time()
     cleanup = None
     if isinstance(source, str):
         source, cleanup = files.open_file(source)
@@ -361,16 +364,26 @@ def load(source, using_json=False, show_prog=True):
     else:
         input_size = 0
     try:
-        return _load(source, tstart, using_json, show_prog, input_size)
+        return _load(source, using_json, show_prog, input_size)
     finally:
         if cleanup is not None:
             cleanup()
 
 
-def _load(source, tstart, using_json, show_prog, input_size):
+def iter_objs(source, using_json, show_prog, input_size, objs):
+    """Iterate MemObjects from json.
+
+    :param source: A line iterator.
+    :param using_json: Use simplejson. See load().
+    :param show_prog: Show progress.
+    :param input_size: The size of the input if known (in bytes) or 0.
+    :param objs: Either None or a dict containing objects by address. If not
+        None, then duplicate objects will not be parsed or output.
+    :return: A generator of MemObjects.
+    """
     # TODO: cStringIO?
+    tstart = time.time()
     input_mb = input_size / 1024. / 1024.
-    objs = {}
     temp_cache = {}
     address_re = re.compile(
         r'{"address": (?P<address>\d+)'
@@ -378,24 +391,25 @@ def _load(source, tstart, using_json, show_prog, input_size):
     bytes_read = count = 0
     last = 0
     mb_read = 0
-
+    if using_json:
+        decoder = _from_json
+    else:
+        decoder = _from_line
     for line_num, line in enumerate(source):
         bytes_read += len(line)
         if line in ("[\n", "]\n"):
             continue
         if line.endswith(',\n'):
             line = line[:-2]
-        m = address_re.match(line)
-        if not m:
-            continue
-        address = int(m.group('address'))
-        if address in objs: # Skip duplicate objects
-            continue
-        if using_json:
-            memobj = _from_json(_loader.MemObject, line, temp_cache=temp_cache)
-        else:
-            memobj = _from_line(_loader.MemObject, line, temp_cache=temp_cache)
-        objs[memobj.address] = memobj
+        if objs:
+            # Skip duplicate objects
+            m = address_re.match(line)
+            if not m:
+                continue
+            address = int(m.group('address'))
+            if address in objs:
+                continue
+        yield decoder(_loader.MemObject, line, temp_cache=temp_cache)
         if show_prog and (line_num - last > 5000):
             last = line_num
             mb_read = bytes_read / 1024. / 1024
@@ -409,5 +423,11 @@ def _load(source, tstart, using_json, show_prog, input_size):
         sys.stderr.write(
             'loaded line %d, %d objs, %5.1f / %5.1f MiB read in %.1fs        \n'
             % (line_num, len(objs), mb_read, input_mb, tdelta))
+
+
+def _load(source, using_json, show_prog, input_size):
+    objs = {}
+    for memobj in iter_objs(source, using_json, show_prog, input_size, objs):
+        objs[memobj.address] = memobj
     # _fill_total_size(objs)
     return ObjManager(objs, show_progress=show_prog)
