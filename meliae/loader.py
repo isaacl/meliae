@@ -370,7 +370,7 @@ def load(source, using_json=False, show_prog=True):
             cleanup()
 
 
-def iter_objs(source, using_json, show_prog, input_size, objs):
+def iter_objs(source, using_json=False, show_prog=False, input_size=0, objs=None):
     """Iterate MemObjects from json.
 
     :param source: A line iterator.

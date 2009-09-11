@@ -1,6 +1,6 @@
 all: build_inplace
 
-check:
+check: all
 	python run_tests.py
 
 build_inplace:

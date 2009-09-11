@@ -42,9 +42,9 @@ _example_dump = [
 '{"address": 3, "type": "list", "size": 44, "len": 3, "refs": [3, 4, 5]}',
 '{"address": 5, "type": "int", "size": 12, "value": 1, "refs": []}',
 '{"address": 4, "type": "int", "size": 12, "value": 2, "refs": []}',
-'{"address": 2, "type": "dict", "size": 124, "len": 2, "refs": [5, 4, 6, 7]}',
+'{"address": 2, "type": "dict", "size": 124, "len": 2, "refs": [4, 5, 6, 7]}',
 '{"address": 7, "type": "tuple", "size": 20, "len": 2, "refs": [4, 5]}',
-'{"address": 6, "type": "str", "size": 29, "len": 5, "value": "a str"'
+'{"address": 6, "type": "str", "size": 29, "name": "bah", "len": 5, "value": "a str"'
  ', "refs": []}',
 ]
 
@@ -89,6 +89,14 @@ class TestLoad(tests.TestCase):
         objs = loader.load(t.name, show_prog=False).objs
         objs[1]
 
+
+class TestMemObj(tests.TestCase):
+
+    def test_to_json(self):
+        objs = list(loader.iter_objs(_example_dump))
+        objs.sort(key=lambda x:x.address)
+        expected = sorted(_example_dump)
+        self.assertEqual(expected, [obj.to_json() for obj in objs])
 
 class TestObjManager(tests.TestCase):
 
