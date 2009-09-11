@@ -19,7 +19,12 @@
 Currently requires simplejson to parse.
 """
 
+import gzip
 import math
+try:
+    import multiprocessing
+except ImportError:
+    nultiprocessing = None
 import os
 import re
 import sys
@@ -31,6 +36,7 @@ except ImportError:
     simplejson = None
 
 from meliae import (
+    files,
     _intset,
     _loader,
     )
@@ -343,13 +349,25 @@ def load(source, using_json=False, show_prog=True):
         out, so the object should be an iterator of json lines.
     """
     tstart = time.time()
+    cleanup = None
     if isinstance(source, str):
-        source = open(source, 'r')
-        input_size = os.fstat(source.fileno()).st_size
+        source, cleanup = files.open_file(source)
+        if isinstance(source, file):
+            input_size = os.fstat(source.fileno()).st_size
+        else:
+            input_size = 0
     elif isinstance(source, (list, tuple)):
         input_size = sum(map(len, source))
     else:
         input_size = 0
+    try:
+        return _load(source, tstart, using_json, show_prog, input_size)
+    finally:
+        if cleanup is not None:
+            cleanup()
+
+
+def _load(source, tstart, using_json, show_prog, input_size):
     # TODO: cStringIO?
     input_mb = input_size / 1024. / 1024.
     objs = {}

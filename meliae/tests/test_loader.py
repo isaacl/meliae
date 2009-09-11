@@ -16,6 +16,7 @@
 
 """Read back in a dump file and process it"""
 
+import gzip
 import sys
 import tempfile
 
@@ -76,6 +77,17 @@ class TestLoad(tests.TestCase):
 
     def test_load_example(self):
         objs = loader.load(_example_dump, show_prog=False)
+
+    def test_load_compressed(self):
+        t = tempfile.NamedTemporaryFile(prefix='meliae-')
+        content = gzip.GzipFile(mode='wb', compresslevel=6, fileobj=t)
+        for line in _example_dump:
+            content.write(line + '\n')
+        content.flush()
+        content.close()
+        t.flush()
+        objs = loader.load(t.name, show_prog=False).objs
+        objs[1]
 
 
 class TestObjManager(tests.TestCase):
