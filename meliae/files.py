@@ -61,7 +61,20 @@ def open_file(filename):
         # make reading from stdin, or writting errors cause immediate aborts
         process.stdin.close()
         process.stderr.close()
-        return process.stdout, process.terminate
+        terminate = getattr(process, 'terminate', None)
+        # terminate is a py2.6 thing
+        if terminate is not None:
+            return process.stdout, terminate
+        else:
+            # We would like to use process.wait() but that can cause a deadlock
+            # if the child is still writing.
+            # The other alternative is process.communicate, but we closed
+            # stderr, and communicate wants to read from it. (We get:
+            #  ValueError: I/O operation on closed file
+            # if we try it here. Also, for large files, this may be many GB
+            # worth of data.
+            # So for now, live with the deadlock...
+            return process.stdout, process.wait
 
 
 def _stream_file(filename, child):
