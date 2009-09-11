@@ -16,6 +16,7 @@
 
 """Read back in a dump file and process it"""
 
+import gzip
 import sys
 import tempfile
 
@@ -41,9 +42,9 @@ _example_dump = [
 '{"address": 3, "type": "list", "size": 44, "len": 3, "refs": [3, 4, 5]}',
 '{"address": 5, "type": "int", "size": 12, "value": 1, "refs": []}',
 '{"address": 4, "type": "int", "size": 12, "value": 2, "refs": []}',
-'{"address": 2, "type": "dict", "size": 124, "len": 2, "refs": [5, 4, 6, 7]}',
+'{"address": 2, "type": "dict", "size": 124, "len": 2, "refs": [4, 5, 6, 7]}',
 '{"address": 7, "type": "tuple", "size": 20, "len": 2, "refs": [4, 5]}',
-'{"address": 6, "type": "str", "size": 29, "len": 5, "value": "a str"'
+'{"address": 6, "type": "str", "size": 29, "name": "bah", "len": 5, "value": "a str"'
  ', "refs": []}',
 ]
 
@@ -77,6 +78,49 @@ class TestLoad(tests.TestCase):
     def test_load_example(self):
         objs = loader.load(_example_dump, show_prog=False)
 
+    def test_load_compressed(self):
+        t = tempfile.NamedTemporaryFile(prefix='meliae-')
+        content = gzip.GzipFile(mode='wb', compresslevel=6, fileobj=t)
+        for line in _example_dump:
+            content.write(line + '\n')
+        content.flush()
+        content.close()
+        t.flush()
+        objs = loader.load(t.name, show_prog=False).objs
+        objs[1]
+
+
+class TestRemoveExpensiveReferences(tests.TestCase):
+
+    def test_remove_expensive_references(self):
+        lines = list(_example_dump)
+        lines.append('{"address": 8, "type": "module", "size": 12'
+                     ', "name": "mymod", "refs": [9]}')
+        lines.append('{"address": 9, "type": "dict", "size": 124'
+                     ', "refs": [10, 11]}')
+        lines.append('{"address": 10, "type": "module", "size": 12'
+                     ', "name": "mod2", "refs": [12]}')
+        lines.append('{"address": 11, "type": "str", "size": 27'
+                     ', "value": "boo", "refs": []}')
+        lines.append('{"address": 12, "type": "dict", "size": 124'
+                     ', "refs": []}')
+        source = lambda:loader.iter_objs(lines)
+        mymod_dict = list(source())[8]
+        self.assertEqual([10, 11], mymod_dict.ref_list)
+        result = list(loader.remove_expensive_references(source))
+        null_obj = result[0][1]
+        self.assertEqual(0, null_obj.address)
+        self.assertEqual('<ex-reference>', null_obj.type_str)
+        self.assertEqual([11, 0], result[9][1].ref_list)
+
+
+class TestMemObj(tests.TestCase):
+
+    def test_to_json(self):
+        objs = list(loader.iter_objs(_example_dump))
+        objs.sort(key=lambda x:x.address)
+        expected = sorted(_example_dump)
+        self.assertEqual(expected, [obj.to_json() for obj in objs])
 
 class TestObjManager(tests.TestCase):
 

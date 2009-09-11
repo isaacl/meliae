@@ -216,3 +216,27 @@ cdef class MemObject:
 
     def _intern_from_cache(self, cache):
         self.type_str = cache.setdefault(self.type_str, self.type_str)
+
+    def to_json(self):
+        """Convert this MemObject to json."""
+        refs = []
+        for ref in sorted(self.ref_list):
+            refs.append(str(ref))
+        if self.length != -1:
+            length = '"len": %d, ' % self.length
+        else:
+            length = ''
+        if self.value is not None:
+            if self.type_str == 'int':
+                value = '"value": %s, ' % self.value
+            else:
+                value = '"value": "%s", ' % self.value
+        else:
+            value = ''
+        if self.name:
+            name = '"name": "%s", ' % self.name
+        else:
+            name = ''
+        return '{"address": %d, "type": "%s", "size": %d, %s%s%s"refs": [%s]}' % (
+            self.address, self.type_str, self.size, name, length, value,
+            ', '.join(refs))

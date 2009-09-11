@@ -29,9 +29,11 @@ import re
 import sys
 import time
 
+from meliae import files
+
 
 def strip_duplicate(infile, outfile, insize=None):
-    from memory_dump import _intset
+    from meliae import _intset
     seen = _intset.IntSet()
 
     address_re = re.compile(
@@ -71,22 +73,33 @@ def main(args):
         '%prog [INFILE [OUTFILE]]')
 
     opts, args = p.parse_args(args)
-
     if len(args) > 2:
         sys.stderr.write('We only support 2 filenames, not %d\n' % (len(args),))
         return -1
-    if len(args) == 0:
-        infile = sys.stdin
-        insize = None
-        outfile = sys.stdout
-    else:
-        infile = open(args[0], 'rb')
-        insize = os.fstat(infile.fileno()).st_size
-        if len(args) == 1:
+
+    cleanups = []
+    try:
+        if len(args) == 0:
+            infile = sys.stdin
+            insize = None
             outfile = sys.stdout
         else:
-            outfile = open(args[1], 'wb')
-    strip_duplicate(infile, outfile, insize)
+            infile, cleanup = files.open_file(args[0])
+            if cleanup is not None:
+                cleanups.append(cleanup)
+            if isinstance(infile, file):
+                # pipes are files, but 0 isn't useful.
+                insize = os.fstat(infile.fileno()).st_size or None
+            else:
+                insize = None
+            if len(args) == 1:
+                outfile = sys.stdout
+            else:
+                outfile = open(args[1], 'wb')
+        strip_duplicate(infile, outfile, insize)
+    finally:
+        for cleanup in cleanups:
+            cleanup()
 
 
 if __name__ == '__main__':
