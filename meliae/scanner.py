@@ -135,3 +135,19 @@ def get_recursive_items(obj):
                 else:
                     pending.append(child)
     return all
+
+
+def find_interned_dict():
+    """Go through all gc objects and find the interned python dict."""
+    for obj in gc.get_objects():
+        if (type(obj) is not dict
+            or 'find_interned_dict' not in obj
+            or obj['find_interned_dict'] is not 'find_interned_dict'
+            or 'get_recursive_items' not in obj
+            or obj['get_recursive_items'] is not 'get_recursive_items'):
+            # The above check assumes that local strings will be interned,
+            # which is the standard cpython behavior, but perhaps not the best
+            # to require? However, if we used something like a custom string
+            # that we intern() we still could have problems with locals(), etc.
+            continue
+        return obj
