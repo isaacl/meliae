@@ -93,9 +93,11 @@ def dump_object_info(object out, object obj, object nodump=None,
     fp_out = PyFile_AsFile(out)
     if fp_out != NULL:
         # This must be a callable
-        _dump_object_info(_file_io_callback, fp_out, obj, nodump, recurse_depth)
+        _dump_object_info(<write_callback>_file_io_callback, fp_out, obj,
+                          nodump, recurse_depth)
     else:
-        _dump_object_info(_callable_callback, <void *>out, obj, nodump, recurse_depth)
+        _dump_object_info(<write_callback>_callable_callback, <void *>out, obj,
+                          nodump, recurse_depth)
 
 
 def get_referents(object obj):

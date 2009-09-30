@@ -55,10 +55,10 @@ struct ref_info {
 void _dump_object_to_ref_info(struct ref_info *info, PyObject *c_obj,
                               int recurse);
 #ifdef __GNUC__
-void _write_to_ref_info(struct ref_info *info, const char *fmt_string, ...)
+static void _write_to_ref_info(struct ref_info *info, const char *fmt_string, ...)
     __attribute__((format(printf, 2, 3)));
 #else
-void _write_to_ref_info(struct ref_info *info, const char *fmt_string, ...);
+static void _write_to_ref_info(struct ref_info *info, const char *fmt_string, ...);
 #endif
 
 Py_ssize_t
