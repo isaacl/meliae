@@ -218,12 +218,16 @@ _dump_if_no_traverse(PyObject *c_obj, void *val)
      * types have a traverse, but they won't be part of gc.get_objects().
      */
     if (Py_TYPE(c_obj)->tp_traverse == NULL
-        || (PyType_Check(c_obj)
-            && !PyType_HasFeature((PyTypeObject*)c_obj, Py_TPFLAGS_HEAPTYPE)))
+               || (PyType_Check(c_obj)
+               && !PyType_HasFeature((PyTypeObject*)c_obj, Py_TPFLAGS_HEAPTYPE)))
     {
         _dump_object_to_ref_info(info, c_obj, 0);
+    } else if (!PyType_HasFeature(Py_TYPE(c_obj), Py_TPFLAGS_HAVE_GC)) {
+        /* This object is not considered part of the garbage collector, even
+         * if it does [not] have a tp_traverse function.
+         */
+        _dump_object_to_ref_info(info, c_obj, 1);
     }
-    // We know that it is safe to recurse here, because tp_traverse is NULL
     return 0;
 }
 
