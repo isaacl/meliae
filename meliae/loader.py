@@ -42,7 +42,7 @@ _object_re = re.compile(
     r', "size": (?P<size>\d+)'
     r'(, "name": "(?P<name>.*)")?'
     r'(, "len": (?P<len>\d+))?'
-    r'(, "value": (?P<value>.*))?'
+    r'(, "value": "?(?P<value>.*?)"?)?'
     r', "refs": \[(?P<refs>[^]]*)\]'
     r'\}')
 
@@ -175,6 +175,12 @@ class _ObjSummary(object):
     def by_size(self):
         summaries = sorted(self.type_summaries.itervalues(),
                            key=lambda x: (x.total_size, x.count),
+                           reverse=True)
+        self.summaries = summaries
+
+    def by_count(self):
+        summaries = sorted(self.type_summaries.itervalues(),
+                           key=lambda x: (x.count, x.total_size),
                            reverse=True)
         self.summaries = summaries
 

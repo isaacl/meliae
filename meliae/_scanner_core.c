@@ -61,6 +61,18 @@ static void _write_to_ref_info(struct ref_info *info, const char *fmt_string, ..
 static void _write_to_ref_info(struct ref_info *info, const char *fmt_string, ...);
 #endif
 
+/* The address of the last thing we dumped. Stuff like dumping the string
+ * interned dictionary will dump the same string 2x in a row. This helps
+ * prevent that.
+ */
+static PyObject *_last_dumped = NULL;
+
+void
+_clear_last_dumped()
+{
+    _last_dumped = NULL;
+}
+
 Py_ssize_t
 _basic_object_size(PyObject *c_obj)
 {
@@ -367,6 +379,11 @@ _dump_object_to_ref_info(struct ref_info *info, PyObject *c_obj, int recurse)
         }
     }
 
+    if (c_obj == _last_dumped) {
+        /* We just dumped this object, no need to do it again. */
+        return;
+    }
+    _last_dumped = c_obj;
     size = _size_of(c_obj);
     _write_to_ref_info(info, "{\"address\": %lu, \"type\": ",
                        (unsigned long)c_obj);

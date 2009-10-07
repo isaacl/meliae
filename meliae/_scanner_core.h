@@ -32,7 +32,7 @@
  * number of bytes for the basic list object. Note that lists over-allocate, so
  * this is not strictly sizeof(pointer) * num_items.
  */
-Py_ssize_t _size_of(PyObject *c_obj);
+extern Py_ssize_t _size_of(PyObject *c_obj);
 
 /**
  * This callback will be used to dump more info to the user.
@@ -42,13 +42,18 @@ typedef void (*write_callback)(void *data, const char *bytes, size_t len);
 /**
  * Write the information about this object to the file.
  */
-void _dump_object_info(write_callback write, void *callee_data,
-                       PyObject *c_obj, PyObject *nodump, int recurse);
+extern void _dump_object_info(write_callback write, void *callee_data,
+                              PyObject *c_obj, PyObject *nodump, int recurse);
+
+/**
+ * Clear out what the last object we dumped was.
+ */
+extern void _clear_last_dumped();
 
 /**
  * Return a PyList of all objects referenced via tp_traverse.
  */
-PyObject *_get_referents(PyObject *c_obj);
+extern PyObject *_get_referents(PyObject *c_obj);
 
 
 #endif // _SCANNER_CORE_H_

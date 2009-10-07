@@ -34,6 +34,7 @@ cdef extern from "_scanner_core.h":
     Py_ssize_t _size_of(object c_obj)
     ctypedef void (*write_callback)(void *callee_data, char *bytes, size_t len)
 
+    void _clear_last_dumped()
     void _dump_object_info(write_callback write, void *callee_data,
                            object c_obj, object nodump, int recurse)
     object _get_referents(object c_obj)
@@ -98,6 +99,7 @@ def dump_object_info(object out, object obj, object nodump=None,
     else:
         _dump_object_info(<write_callback>_callable_callback, <void *>out, obj,
                           nodump, recurse_depth)
+    _clear_last_dumped()
 
 
 def get_referents(object obj):
