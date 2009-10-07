@@ -29,12 +29,14 @@ get_referents = _scanner.get_referents
 
 def dump_all_referenced(outf, obj):
     """Recursively dump everything that is referenced from obj."""
-    # if isinstance(outf, str):
-    #     outf = open(outf, 'wb')
+    if isinstance(outf, str):
+        outf = open(outf, 'wb')
     pending = [obj]
+    last_offset = 0
     seen = _intset.IDSet()
-    while pending:
-        next = pending.pop()
+    while last_offset >= 0:
+        next = pending[last_offset]
+        last_offset -= 1
         id_next = id(next)
         if id_next in seen:
             continue
@@ -43,13 +45,15 @@ def dump_all_referenced(outf, obj):
         _scanner.dump_object_info(outf, next, recurse_depth=0)
         for ref in get_referents(next):
             if id(ref) not in seen:
-                pending.append(ref)
+                last_offset += 1
+                if len(pending) > last_offset:
+                    pending[last_offset] = ref
+                else:
+                    pending.append(ref)
 
 
 def dump_gc_objects(outf, recurse_depth=1):
-    """Dump everything that is available via gc.objects().
-
-    This does *not* do a recursive search.
+    """Dump everything that is available via gc.get_objects().
     """
     if isinstance(outf, basestring):
         outf = open(outf, 'wb')
@@ -82,6 +86,23 @@ def dump_gc_objects(outf, recurse_depth=1):
     for obj in all_objs:
         _scanner.dump_object_info(outf, obj, nodump=nodump,
                                   recurse_depth=recurse_depth)
+
+
+def dump_all_objects(outf):
+    """Dump everything that is referenced from gc.get_objects()
+
+    This recurses, and tracks dumped objects in an IDSet. Which means it costs
+    memory, which is often about 10% of currently active memory. Otherwise,
+    this usually results in smaller dump files than dump_gc_objects().
+
+    This also can be faster, because it doesn't dump the same item multiple
+    times.
+    """
+    if isinstance(outf, basestring):
+        outf = open(outf, 'wb')
+    all_objs = gc.get_objects()
+    dump_all_referenced(outf, all_objs)
+
 
 
 def get_recursive_size(obj):
