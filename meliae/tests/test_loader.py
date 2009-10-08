@@ -1,14 +1,14 @@
 # Copyright (C) 2009 Canonical Ltd
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
 # published by the Free Software Foundation.
-# 
+#
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -65,7 +65,7 @@ class TestLoad(tests.TestCase):
             # re-evaluated for 64-bit versions of python
             test_dict_id = int(test_dict_id - 2 * (sys.maxint + 1))
         self.assertTrue(test_dict_id in manager.objs)
-        
+
     def test_load_one(self):
         objs = loader.load([
             '{"address": 1234, "type": "int", "size": 12, "value": 10'
@@ -94,7 +94,18 @@ class TestLoad(tests.TestCase):
         finally:
             f.close()
             os.remove(name)
-            
+
+    def test_get_all(self):
+        om = loader.load(_example_dump, show_prog=False)
+        the_ints = om.get_all('int')
+        self.assertEqual(2, len(the_ints))
+        self.assertEqual([4, 5], sorted([i.address for i in the_ints]))
+
+    def test_one(self):
+        om = loader.load(_example_dump, show_prog=False)
+        an_int = om[5]
+        self.assertEqual(5, an_int.address)
+        self.assertEqual('int', an_int.type_str)
 
 
 class TestRemoveExpensiveReferences(tests.TestCase):

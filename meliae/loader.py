@@ -195,6 +195,9 @@ class ObjManager(object):
         self.objs = objs
         self.show_progress = show_progress
 
+    def __getitem__(self, address):
+        return self.objs[address]
+
     def compute_referrers(self):
         """For each object, figure out who is referencing it."""
         referrers = {} # From address => [referred from]
@@ -282,6 +285,10 @@ class ObjManager(object):
         for obj in self.objs.itervalues():
             summary._add(obj)
         return summary
+
+    def get_all(self, type_str):
+        """Return all objects that match a given type."""
+        return [o for o in self.objs.itervalues() if o.type_str == type_str]
 
 
 def load(source, using_json=False, show_prog=True):
