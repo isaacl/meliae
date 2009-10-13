@@ -87,7 +87,7 @@ class TestMemObject(tests.TestCase):
                          ', 0 refs, \'teststr\')', repr(mem))
         mem.value = 'averylongstringwithmorestuff'
         self.assertEqual('MemObject(1234, str, 24 bytes'
-                         ', 0 refs, \'averylon...)', repr(mem))
+                         ', 0 refs, \'averylongstringwi...)', repr(mem))
         mem = _loader.MemObject(1234, 'int', 12, [])
         mem.value = 12345
         self.assertEqual('MemObject(1234, int, 12 bytes'

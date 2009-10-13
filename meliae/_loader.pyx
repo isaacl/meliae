@@ -212,8 +212,8 @@ cdef class MemObject:
         else:
             r = repr(self.value)
             if isinstance(self.value, basestring):
-                if len(r) > 12:
-                    r = r[:9] + "..."
+                if len(r) > 21:
+                    r = r[:18] + "..."
             value_str = ', %s' % (r,)
         return ('%s(%d, %s%s, %d bytes, %d refs%s%s%s%s)'
                 % (self.__class__.__name__, self.address, self.type_str,
