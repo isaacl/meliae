@@ -294,7 +294,7 @@ class ObjManager(object):
         return [o for o in self.objs.itervalues() if o.type_str == type_str]
 
 
-def load(source, using_json=False, show_prog=True):
+def load(source, using_json=None, show_prog=True):
     """Load objects from the given source.
 
     :param source: If this is a string, we will open it as a file and read all
@@ -302,7 +302,10 @@ def load(source, using_json=False, show_prog=True):
         out, so the object should be an iterator of json lines.
     :param using_json: Use simplejson rather than the regex. This allows
         arbitrary ordered json dicts to be parsed but still requires per-line
-        layout.
+        layout. Set to 'False' to indicate you want to use the regex, set to
+        'True' to force using simplejson. None will probe to see if simplejson
+        is available, and use it if it is. (With _speedups built, simplejson
+        parses faster and more accurately than the regex.)
     """
     cleanup = None
     if isinstance(source, str):
@@ -315,6 +318,8 @@ def load(source, using_json=False, show_prog=True):
         input_size = sum(map(len, source))
     else:
         input_size = 0
+    if using_json is None:
+        using_json = (simplejson is not None)
     try:
         return _load(source, using_json, show_prog, input_size)
     finally:
