@@ -268,7 +268,7 @@ _dump_json_c_string(struct ref_info *info, const char *buf, Py_ssize_t len)
                             ((unsigned short)c & 0xFF));
         } else if (c == '\\' || c == '/' || c == '"') {
             *ptr++ = '\\';
-            *ptr++ = 'c';
+            *ptr++ = c;
         } else {
             *ptr++ = c;
         }

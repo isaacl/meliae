@@ -295,6 +295,12 @@ class TestPyDumpJSONObj(tests.TestCase):
             ', "value": "a string", "refs": []}\n'
             % (id(mystr), _scanner.size_of(mystr)),
             mystr)
+        mystr = 'a \\str/with"control'
+        self.assertDumpText(
+            '{"address": %d, "type": "str", "size": %d, "len": 19'
+            ', "value": "a \\\\str\\/with\\"control", "refs": []}\n'
+            % (id(mystr), _scanner.size_of(mystr)),
+            mystr)
 
     def test_unicode(self):
         myu = u'a \xb5nicode'
@@ -394,6 +400,7 @@ class TestDumpInfo(tests.TestCase):
 
     def test_str(self):
         self.assertDumpInfo('this is a short \x00 \x1f \xffstring\n')
+        self.assertDumpInfo('a \\string / with " control chars')
 
     def test_long_str(self):
         self.assertDumpInfo('abcd'*1000)
