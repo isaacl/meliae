@@ -234,6 +234,32 @@ class ObjManager(object):
             if changed:
                 self.objs[obj.address] = obj
 
+    def _compute_total_size(self, obj):
+        pending_descendents = list(obj.ref_list)
+        seen = _intset.IDSet()
+        seen.add(obj.address)
+        total_size = obj.size
+        while pending_descendents:
+            next_ref = pending_descendents.pop()
+            if next_ref in seen:
+                continue
+            seen.add(next_ref)
+            next_obj = self.objs.get(next_ref, None)
+            if next_obj is None:
+                continue
+            # type and frame types tend to cause us to recurse into
+            # everything. So for now, when we encounter them, don't add
+            # their references
+            total_size += next_obj.size
+            pending_descendents.extend([ref for ref in next_obj.ref_list
+                                             if ref not in seen])
+        ## count = len(seen)
+        ## # This single object references more than 10% of all objects, and
+        ## # expands to more that 10x its direct references
+        ## if count > obj.num_refs * 10 and count > break_on:
+        ##     import pdb; pdb.set_trace()
+        obj.total_size = total_size
+
     def compute_total_size(self):
         """This computes the total bytes referenced from this object."""
         # Unfortunately, this is an N^2 operation :(. The problem is that
@@ -255,30 +281,7 @@ class ObjManager(object):
             if self.show_progress and idx & 0x1ff == 0:
                 sys.stderr.write('compute size %8d / %8d        \r'
                                  % (idx, total))
-            pending_descendents = list(obj.ref_list)
-            seen = _intset.IDSet()
-            seen.add(obj.address)
-            total_size = obj.size
-            while pending_descendents:
-                next_ref = pending_descendents.pop()
-                if next_ref in seen:
-                    continue
-                seen.add(next_ref)
-                next_obj = self.objs.get(next_ref, None)
-                if next_obj is None:
-                    continue
-                # type and frame types tend to cause us to recurse into
-                # everything. So for now, when we encounter them, don't add
-                # their references
-                total_size += next_obj.size
-                pending_descendents.extend([ref for ref in next_obj.ref_list
-                                                 if ref not in seen])
-            ## count = len(seen)
-            ## # This single object references more than 10% of all objects, and
-            ## # expands to more that 10x its direct references
-            ## if count > obj.num_refs * 10 and count > break_on:
-            ##     import pdb; pdb.set_trace()
-            obj.total_size = total_size
+            self._compute_total_size(obj)
 
     def summarize(self):
         summary = _ObjSummary()

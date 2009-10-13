@@ -207,10 +207,18 @@ cdef class MemObject:
         else:
             referrer_str = ', %d referrers %s' % (self._referrer_list[0],
                 _format_list(self._referrer_list))
-        return ('%s(%d, %s%s, %d bytes, %d refs%s%s%s)'
+        if self.value is None:
+            value_str = ''
+        else:
+            r = repr(self.value)
+            if isinstance(self.value, basestring):
+                if len(r) > 12:
+                    r = r[:9] + "..."
+            value_str = ', %s' % (r,)
+        return ('%s(%d, %s%s, %d bytes, %d refs%s%s%s%s)'
                 % (self.__class__.__name__, self.address, self.type_str,
                    name_str, self.size, num_refs, ref_space, ref_str,
-                   referrer_str))
+                   referrer_str, value_str))
 
     def _intern_from_cache(self, cache):
         self.type_str = cache.setdefault(self.type_str, self.type_str)
