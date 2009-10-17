@@ -108,7 +108,7 @@ cdef class MemObject:
     cdef readonly long address
     cdef readonly object type_str # pointer to a PyString, this is expected to be shared
                                   # with many other instances, but longer than 4 bytes
-    cdef readonly long size
+    cdef public long size
     cdef long *_ref_list # An array of addresses that this object
                          # referenced. May be NULL if len() == 0
                          # If not null, the first item is the length of the

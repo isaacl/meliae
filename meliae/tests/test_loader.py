@@ -47,6 +47,31 @@ _example_dump = [
  ', "refs": []}',
 ]
 
+# Note that this doesn't have a complete copy of the references. Namely when
+# you subclass object you get a lot of references, and type instances also
+# reference other stuff that tends to chain to stuff like 'sys', which ends up
+# referencing everything.
+_instance_dump = [
+'{"address": 1, "type": "MyClass", "size": 32, "refs": [2, 3]}',
+'{"address": 3, "type": "type", "size": 452, "name": "MyClass", "refs": []}',
+'{"address": 2, "type": "dict", "size": 140, "len": 4'
+ ', "refs": [4, 5, 6, 7, 9, 10, 11, 12]}',
+'{"address": 4, "type": "str", "size": 25, "len": 1, "value": "a", "refs": []}',
+'{"address": 5, "type": "int", "size": 12, "value": 1, "refs": []}',
+'{"address": 6, "type": "str", "size": 25, "len": 1, "value": "c", "refs": []}',
+'{"address": 7, "type": "dict", "size": 140, "len": 1, "refs": [8, 6]}',
+'{"address": 8, "type": "str", "size": 25, "len": 1, "value": "s", "refs": []}',
+'{"address": 9, "type": "str", "size": 25, "len": 1, "value": "b", "refs": []}',
+'{"address": 10, "type": "str", "size": 30, "len": 6'
+ ', "value": "string", "refs": []}',
+'{"address": 11, "type": "str", "size": 25, "len": 1, "value": "d", "refs": []}',
+'{"address": 12, "type": "tuple", "size": 32, "len": 1, "refs": [13]}',
+'{"address": 13, "type": "int", "size": 12, "value": 2, "refs": []}',
+'{"address": 14, "type": "module", "size": 28, "name": "sys", "refs": [15]}',
+'{"address": 15, "type": "dict", "size": 140, "len": 2, "refs": [5, 6, 9, 6]}',
+]
+
+
 class TestLoad(tests.TestCase):
 
     def test_load_smoketest(self):
@@ -197,3 +222,43 @@ class TestObjManager(tests.TestCase):
         self.assertEqual(0, null_obj.address)
         self.assertEqual('<ex-reference>', null_obj.type_str)
         self.assertEqual([11, 0], mymod_dict.ref_list)
+
+    def test_collapse_instance_dicts(self):
+        lines = list(_instance_dump)
+        manager = loader.load(lines, show_prog=False)
+        # This should collapse all of the references from the instance's dict
+        # @2 into the instance @1
+        instance = manager.objs[1]
+        self.assertEqual(32, instance.size)
+        self.assertEqual([2, 3], instance.ref_list)
+        inst_dict = manager.objs[2]
+        self.assertEqual(140, inst_dict.size)
+        self.assertEqual([4, 5, 6, 7, 9, 10, 11, 12], inst_dict.ref_list)
+        mod = manager.objs[14]
+        self.assertEqual([15], mod.ref_list)
+        mod_dict = manager.objs[15]
+        self.assertEqual([5, 6, 9, 6], mod_dict.ref_list)
+        manager.compute_referrers()
+        tpl = manager.objs[12]
+        self.assertEqual([2], tpl.referrers)
+        self.assertEqual([1], inst_dict.referrers)
+        self.assertEqual([14], mod_dict.referrers)
+        manager.collapse_instance_dicts()
+        # The instance dict has been removed
+        self.assertEqual([4, 5, 6, 7, 9, 10, 11, 12, 3], instance.ref_list)
+        self.assertEqual(172, instance.size)
+        self.assertFalse(2 in manager.objs)
+        self.assertEqual([1], tpl.referrers)
+        self.assertEqual([5, 6, 9, 6], mod.ref_list)
+        self.assertFalse(15 in manager.objs)
+
+    def test_expand_refs_as_dict(self):
+        lines = list(_instance_dump)
+        manager = loader.load(lines, show_prog=False)
+        as_dict = manager.refs_as_dict(manager[15])
+        self.assertEqual({1: 'c', 'b': 'c'}, as_dict)
+        manager.compute_referrers()
+        manager.collapse_instance_dicts()
+        self.assertEqual({1: 'c', 'b': 'c'}, manager.refs_as_dict(manager[14]))
+        self.assertEqual({'a': 1, 'c': manager[7], 'b': 'string',
+                          'd': manager[12]}, manager.refs_as_dict(manager[1]))

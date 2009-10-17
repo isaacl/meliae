@@ -214,6 +214,9 @@ class ObjManager(object):
                 referrers.setdefault(ref, []).append(address)
         for obj in self.objs.itervalues():
             obj.referrers = referrers.get(obj.address, ())
+        if self.show_progress:
+            sys.stderr.write('compute referrers %8d / %8d        \n'
+                             % (idx, total))
 
     def remove_expensive_references(self):
         """Filter out references that are mere houskeeping links.
@@ -230,7 +233,7 @@ class ObjManager(object):
         source = lambda:self.objs.itervalues()
         total_objs = len(self.objs)
         for changed, obj in remove_expensive_references(source, total_objs,
-            self.show_progress):
+                                                        self.show_progress):
             if changed:
                 self.objs[obj.address] = obj
 
@@ -283,6 +286,9 @@ class ObjManager(object):
                 sys.stderr.write('compute size %8d / %8d        \r'
                                  % (idx, total))
             self._compute_total_size(obj)
+        if self.show_progress:
+            sys.stderr.write('compute size %8d / %8d        \n'
+                             % (idx, total))
 
     def summarize(self):
         summary = _ObjSummary()
@@ -292,7 +298,98 @@ class ObjManager(object):
 
     def get_all(self, type_str):
         """Return all objects that match a given type."""
-        return [o for o in self.objs.itervalues() if o.type_str == type_str]
+        all = [o for o in self.objs.itervalues() if o.type_str == type_str]
+        all.sort(key=lambda x:(x.size, x.num_refs, x.num_referrers),
+                 reverse=True)
+        return all
+
+    def collapse_instance_dicts(self):
+        """Hide the __dict__ member of instances.
+
+        When a class does not have __slots__ defined, all instances get a
+        separate '__dict__' attribute that actually holds their contents. This
+        adds a level of indirection that can make it harder than it needs to
+        be, to actually find what instance holds what objects.
+
+        So we collapse those references back into the object, and grow its
+        'size' at the same time.
+        """
+        # The instances I'm focusing on have a custom type name, and every
+        # instance has 2 pointers. The first is to __dict__, and the second is
+        # to the 'type' object whose name matches the type of the instance.
+        # Also __dict__ has only 1 referrer, and that is *this* object
+        collapsed = 0
+        total = len(self.objs)
+        for address, obj in self.objs.items():
+            if obj.type_str == 'module' and obj.num_refs == 1:
+                (dict_ref,) = obj.ref_list
+                extra_refs = []
+            else:
+                if obj.type_str in ('str', 'dict', 'tuple', 'list', 'type',
+                                    'function', 'wrapper_descriptor',
+                                    'code', 'classobj'):
+                    continue
+                if obj.num_refs != 2:
+                    continue
+                (dict_ref, type_ref) = obj.ref_list
+                type_obj = self.objs[type_ref]
+                if type_obj.type_str != 'type' or type_obj.name != obj.type_str:
+                    continue
+                extra_refs = [type_ref]
+            dict_obj = self.objs[dict_ref]
+            if dict_obj.type_str != 'dict':
+                continue
+            if (dict_obj.num_referrers != 1
+                or dict_obj.referrers[0] != address):
+                continue
+            collapsed += 1
+            if self.show_progress and collapsed & 0xff == 0:
+                sys.stderr.write('collapsed %8d / %8d        \r'
+                                 % (collapsed, total))
+            # We found an instance \o/
+            for ref in dict_obj.ref_list:
+                referenced_obj = self.objs[ref]
+                referrers = referenced_obj.referrers
+                for idx in xrange(len(referrers)):
+                    if referrers[idx] == dict_ref:
+                        referrers[idx] = address
+                referenced_obj.referrers = referrers
+            obj.ref_list = dict_obj.ref_list + extra_refs
+            obj.size = obj.size + dict_obj.size
+            obj.total_size = 0
+            # Now that all the data has been moved into the instance, remove
+            # the dict from the collection
+            del self.objs[dict_ref]
+        if self.show_progress:
+            sys.stderr.write('collapsed %8d / %8d => %8d   \n'
+                             % (collapsed, total, len(self.objs)))
+
+    def refs_as_dict(self, obj):
+        """Expand the ref list considering it to be a 'dict' structure.
+        
+        Often we have dicts that point to simple strings and ints, etc. This
+        tries to expand that as much as possible.
+
+        :param obj: Should be a MemObject representing an instance (that has
+            been collapsed) or a dict.
+        """
+        as_dict = {}
+        ref_list = obj.ref_list
+        if obj.type_str not in ('dict', 'module'):
+            # Instance dicts end with a 'type' reference
+            ref_list = ref_list[:-1]
+        for idx in xrange(0, len(ref_list), 2):
+            key = self.objs[ref_list[idx]]
+            val = self.objs[ref_list[idx+1]]
+            if key.value is not None:
+                key = key.value
+            # TODO: We should consider recursing if val is a 'known' type, such
+            #       a tuple/dict/etc
+            if val.value is not None:
+                val = val.value
+            as_dict[key] = val
+        return as_dict
+
 
 
 def load(source, using_json=None, show_prog=True):
