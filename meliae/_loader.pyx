@@ -190,6 +190,7 @@ cdef class MemObject:
 
     def __repr__(self):
         cdef int i, max_refs
+        cdef double total_size
         if self.name is not None:
             name_str = ', %s' % (self.name,)
         else:
@@ -215,10 +216,27 @@ cdef class MemObject:
                 if len(r) > 21:
                     r = r[:18] + "..."
             value_str = ', %s' % (r,)
-        return ('%s(%d, %s%s, %d bytes, %d refs%s%s%s%s)'
+        if self.total_size == 0:
+            total_size_str = ''
+        else:
+            total_size = self.total_size
+            order = 'B'
+            if total_size > 800.0:
+                total_size = total_size / 1024
+                order = 'KiB'
+            if total_size > 800.0:
+                total_size = total_size / 1024
+                order = 'MiB'
+            if total_size > 800.0:
+                total_size = total_size / 1024
+                order = 'GiB'
+            total_size_str = ', %.1f%s' % (total_size, order)
+            
+
+        return ('%s(%d, %s%s, %d bytes, %d refs%s%s%s%s%s)'
                 % (self.__class__.__name__, self.address, self.type_str,
                    name_str, self.size, num_refs, ref_space, ref_str,
-                   referrer_str, value_str))
+                   referrer_str, value_str, total_size_str))
 
     def _intern_from_cache(self, cache):
         self.type_str = cache.setdefault(self.type_str, self.type_str)

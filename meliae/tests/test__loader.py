@@ -92,3 +92,12 @@ class TestMemObject(tests.TestCase):
         mem.value = 12345
         self.assertEqual('MemObject(1234, int, 12 bytes'
                          ', 0 refs, 12345)', repr(mem))
+        mem.total_size = 12
+        self.assertEqual('MemObject(1234, int, 12 bytes'
+                         ', 0 refs, 12345, 12.0B)', repr(mem))
+        mem.total_size = 1024
+        self.assertEqual('MemObject(1234, int, 12 bytes'
+                         ', 0 refs, 12345, 1.0KiB)', repr(mem))
+        mem.total_size = int(1024*1024*10.5)
+        self.assertEqual('MemObject(1234, int, 12 bytes'
+                         ', 0 refs, 12345, 10.5MiB)', repr(mem))

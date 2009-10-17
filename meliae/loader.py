@@ -259,6 +259,7 @@ class ObjManager(object):
         ## if count > obj.num_refs * 10 and count > break_on:
         ##     import pdb; pdb.set_trace()
         obj.total_size = total_size
+        return obj
 
     def compute_total_size(self):
         """This computes the total bytes referenced from this object."""
