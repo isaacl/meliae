@@ -385,8 +385,12 @@ class ObjManager(object):
                 key = key.value
             # TODO: We should consider recursing if val is a 'known' type, such
             #       a tuple/dict/etc
-            if val.value is not None:
+            if val.type_str == 'bool':
+                val = (val.value == 'True')
+            elif val.value is not None:
                 val = val.value
+            elif val.type_str == 'NoneType':
+                val = None
             as_dict[key] = val
         return as_dict
 
