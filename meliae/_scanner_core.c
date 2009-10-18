@@ -412,6 +412,14 @@ _dump_object_to_ref_info(struct ref_info *info, PyObject *c_obj, int recurse)
         _write_to_ref_info(info, ", \"len\": " SSIZET_FMT, PyUnicode_GET_SIZE(c_obj));
         _write_static_to_info(info, ", \"value\": ");
         _dump_unicode(info, c_obj);
+    } else if (PyBool_Check(c_obj)) {
+        if (c_obj == Py_True) {
+            _write_static_to_info(info, ", \"value\": \"True\"");
+        } else if (c_obj == Py_False) {
+            _write_static_to_info(info, ", \"value\": \"False\"");
+        } else {
+            _write_to_ref_info(info, ", \"value\": %ld", PyInt_AS_LONG(c_obj));
+        }
     } else if (PyInt_CheckExact(c_obj)) {
         _write_to_ref_info(info, ", \"value\": %ld", PyInt_AS_LONG(c_obj));
     } else if (PyTuple_Check(c_obj)) {

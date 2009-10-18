@@ -245,6 +245,10 @@ def _py_dump_json_obj(obj):
         content.append(', "value": %s' % (_string_to_json(obj[:100]),))
     elif isinstance(obj, unicode):
         content.append(', "value": %s' % (_unicode_to_json(obj[:100]),))
+    elif obj is True:
+        content.append(', "value": "True"')
+    elif obj is False:
+        content.append(', "value": "False"')
     elif isinstance(obj, int):
         content.append(', "value": %d' % (obj,))
     first = True
@@ -331,6 +335,18 @@ class TestPyDumpJSONObj(tests.TestCase):
             '{"address": %d, "type": "module", "size": %d'
             ', "name": "meliae._scanner", "refs": [%d]}\n'
             % (id(m), _scanner.size_of(m), id(m.__dict__)), m)
+
+    def test_bool(self):
+        a = True
+        b = False
+        self.assertDumpText(
+            '{"address": %d, "type": "bool", "size": %d'
+            ', "value": "True", "refs": []}\n'
+            % (id(a), _scanner.size_of(a)), a)
+        self.assertDumpText(
+            '{"address": %d, "type": "bool", "size": %d'
+            ', "value": "False", "refs": []}\n'
+            % (id(b), _scanner.size_of(b)), b)
 
 
 class TestDumpInfo(tests.TestCase):
@@ -438,6 +454,10 @@ class TestDumpInfo(tests.TestCase):
         class MyOldClass:
             pass
         self.assertDumpInfo(MyOldClass)
+
+    def test_bool(self):
+        self.assertDumpInfo(True)
+        self.assertDumpInfo(False)
 
 
 class TestGetReferents(tests.TestCase):
