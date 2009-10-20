@@ -313,6 +313,11 @@ class ObjManager(object):
 
         So we collapse those references back into the object, and grow its
         'size' at the same time.
+
+        :param update_referrers: When removing the instance's __dict__
+            variable, update all references. If there are lots of things to
+            update, it is often faster to collapse everything, and then update
+            after-the-fact.
         """
         # The instances I'm focusing on have a custom type name, and every
         # instance has 2 pointers. The first is to __dict__, and the second is
@@ -320,15 +325,19 @@ class ObjManager(object):
         # Also __dict__ has only 1 referrer, and that is *this* object
         collapsed = 0
         total = len(self.objs)
-        for address, obj in self.objs.items():
+        for item_idx, (address, obj) in enumerate(self.objs.items()):
+            if obj.type_str in ('str', 'dict', 'tuple', 'list', 'type',
+                                'function', 'wrapper_descriptor',
+                                'code', 'classobj', 'int',
+                                'weakref'):
+                continue
+            if self.show_progress and item_idx & 0x5ff:
+                sys.stderr.write('checked %8d / %8d collapsed %8d    \r'
+                                 % (item_idx, total, collapsed))
             if obj.type_str == 'module' and obj.num_refs == 1:
                 (dict_ref,) = obj.ref_list
                 extra_refs = []
             else:
-                if obj.type_str in ('str', 'dict', 'tuple', 'list', 'type',
-                                    'function', 'wrapper_descriptor',
-                                    'code', 'classobj'):
-                    continue
                 if obj.num_refs != 2:
                     continue
                 (dict_ref, type_ref) = obj.ref_list
@@ -343,17 +352,7 @@ class ObjManager(object):
                 or dict_obj.referrers[0] != address):
                 continue
             collapsed += 1
-            if self.show_progress and collapsed & 0xff == 0:
-                sys.stderr.write('collapsed %8d / %8d        \r'
-                                 % (collapsed, total))
             # We found an instance \o/
-            for ref in dict_obj.ref_list:
-                referenced_obj = self.objs[ref]
-                referrers = referenced_obj.referrers
-                for idx in xrange(len(referrers)):
-                    if referrers[idx] == dict_ref:
-                        referrers[idx] = address
-                referenced_obj.referrers = referrers
             obj.ref_list = dict_obj.ref_list + extra_refs
             obj.size = obj.size + dict_obj.size
             obj.total_size = 0
@@ -361,8 +360,10 @@ class ObjManager(object):
             # the dict from the collection
             del self.objs[dict_ref]
         if self.show_progress:
-            sys.stderr.write('collapsed %8d / %8d => %8d   \n'
-                             % (collapsed, total, len(self.objs)))
+            sys.stderr.write('checked %8d / %8d collapsed %8d    \r'
+                             % (item_idx, total, collapsed))
+        if collapsed:
+            self.compute_referrers()
 
     def refs_as_dict(self, obj):
         """Expand the ref list considering it to be a 'dict' structure.
