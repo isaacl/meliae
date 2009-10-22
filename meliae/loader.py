@@ -202,18 +202,45 @@ class ObjManager(object):
         """For each object, figure out who is referencing it."""
         referrers = {} # From address => [referred from]
         id_cache = {}
+        unique_address = id_cache.setdefault 
         total = len(self.objs)
         for idx, obj in enumerate(self.objs.itervalues()):
             if self.show_progress and idx & 0x1ff == 0:
                 sys.stderr.write('compute referrers %8d / %8d        \r'
                                  % (idx, total))
             address = obj.address
-            address = id_cache.setdefault(address, address)
+            address = unique_address(address, address)
             for ref in obj.ref_list:
-                ref = id_cache.setdefault(ref, ref)
-                referrers.setdefault(ref, []).append(address)
+                ref = unique_address(ref, ref)
+                refs = referrers.get(ref, None)
+                t = type(refs)
+                if refs is None:
+                    refs = address
+                elif t is int:
+                    refs = (refs, address)
+                elif t is tuple:
+                    if len(refs) >= 10:
+                        refs = list(refs)
+                        refs.append(address)
+                    else:
+                        refs = refs + (address,)
+                elif t is list:
+                    refs.append(address)
+                else:
+                    raise TypeError('unknown refs type: %s\n'
+                                    % (t,))
+                referrers[ref] = refs
+        del id_cache
         for obj in self.objs.itervalues():
-            obj.referrers = referrers.get(obj.address, ())
+            try:
+                refs = referrers.pop(obj.address)
+            except KeyError:
+                obj.referrers = ()
+            else:
+                if type(refs) is int:
+                    obj.referrers = (refs,)
+                else:
+                    obj.referrers = refs
         if self.show_progress:
             sys.stderr.write('compute referrers %8d / %8d        \n'
                              % (idx, total))
