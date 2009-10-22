@@ -22,6 +22,25 @@ cdef extern from "Python.h":
     void *malloc(size_t)
     void free(void *)
 
+    PyObject *PyDict_GetItem(object d, object key)
+    int PyDict_SetItem(object d, object key, object val) except -1
+
+
+cdef object _set_default(object d, object val):
+    """Either return the value in the dict, or return 'val'.
+
+    This is the same as Dict.setdefault, but without the attribute lookups. (It
+    may be slightly worse because it does 2 dict lookups?)
+    """
+    cdef PyObject *tmp
+    
+    tmp = PyDict_GetItem(d, val)
+    if tmp == NULL:
+        PyDict_SetItem(d, val, val)
+    else:
+        val = <object>tmp
+    return val
+
 
 cdef object _ref_list_to_list(long *ref_list):
     """Convert the notation of [len, items, ...] into [items].
@@ -105,7 +124,10 @@ cdef class MemObject:
     :ivar name: Some objects have associated names, like modules, classes, etc.
     """
 
-    cdef readonly long address
+    cdef readonly object address  # We track the address by pointing to a PyInt
+                                  # This is valid, because we put these objects
+                                  # into a dict anyway, so we need a PyInt
+                                  # And we can just share it
     cdef readonly object type_str # pointer to a PyString, this is expected to be shared
                                   # with many other instances, but longer than 4 bytes
     cdef public long size
@@ -126,9 +148,7 @@ cdef class MemObject:
 
     def __init__(self, address, type_str, size, ref_list, length=None,
                  value=None, name=None):
-        cdef unsigned long temp_address
-        temp_address = address
-        self.address = <long>temp_address
+        self.address = address
         self.type_str = type_str
         self.size = size
         self._ref_list = _list_to_ref_list(ref_list)
@@ -239,7 +259,8 @@ cdef class MemObject:
                    referrer_str, value_str, total_size_str))
 
     def _intern_from_cache(self, cache):
-        self.type_str = cache.setdefault(self.type_str, self.type_str)
+        self.address = _set_default(cache, self.address)
+        self.type_str = _set_default(cache, self.type_str)
 
     def to_json(self):
         """Convert this MemObject to json."""

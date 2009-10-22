@@ -95,9 +95,13 @@ class TestLoad(tests.TestCase):
         objs = loader.load([
             '{"address": 1234, "type": "int", "size": 12, "value": 10'
             ', "refs": []}'], show_prog=False).objs
-        self.assertEqual([1234], objs.keys())
+        keys = objs.keys()
+        self.assertEqual([1234], keys)
         obj = objs[1234]
         self.assertTrue(isinstance(obj, _loader.MemObject))
+        # The address should be exactly the same python object as the key in
+        # the objs dictionary.
+        self.assertIs(keys[0], obj.address)
 
     def test_load_example(self):
         objs = loader.load(_example_dump, show_prog=False)
