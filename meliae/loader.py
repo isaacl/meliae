@@ -395,6 +395,21 @@ class ObjManager(object):
             as_dict[key] = val
         return as_dict
 
+    def refs_as_list(self, obj):
+        """Expand the ref list, considering it to be a list structure."""
+        as_list = []
+        ref_list = obj.ref_list
+        for addr in ref_list:
+            val = self.objs[addr]
+            if val.type_str == 'bool':
+                val = (val.value == 'True')
+            elif val.value is not None:
+                val = val.value
+            elif val.type_str == 'NoneType':
+                val = None
+            as_list.append(val)
+        return as_list
+
 
 
 def load(source, using_json=None, show_prog=True):

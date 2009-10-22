@@ -224,8 +224,7 @@ class TestObjManager(tests.TestCase):
         self.assertEqual([11, 0], mymod_dict.ref_list)
 
     def test_collapse_instance_dicts(self):
-        lines = list(_instance_dump)
-        manager = loader.load(lines, show_prog=False)
+        manager = loader.load(_instance_dump, show_prog=False)
         # This should collapse all of the references from the instance's dict
         # @2 into the instance @1
         instance = manager.objs[1]
@@ -253,8 +252,7 @@ class TestObjManager(tests.TestCase):
         self.assertFalse(15 in manager.objs)
 
     def test_expand_refs_as_dict(self):
-        lines = list(_instance_dump)
-        manager = loader.load(lines, show_prog=False)
+        manager = loader.load(_instance_dump, show_prog=False)
         as_dict = manager.refs_as_dict(manager[15])
         self.assertEqual({1: 'c', 'b': 'c'}, as_dict)
         manager.compute_referrers()
@@ -262,3 +260,7 @@ class TestObjManager(tests.TestCase):
         self.assertEqual({1: 'c', 'b': 'c'}, manager.refs_as_dict(manager[14]))
         self.assertEqual({'a': 1, 'c': manager[7], 'b': 'string',
                           'd': manager[12]}, manager.refs_as_dict(manager[1]))
+
+    def test_expand_refs_as_list(self):
+        manager = loader.load(_instance_dump, show_prog=False)
+        self.assertEqual([2], manager.refs_as_list(manager[12]))
