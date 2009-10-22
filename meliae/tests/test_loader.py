@@ -101,7 +101,7 @@ class TestLoad(tests.TestCase):
         self.assertTrue(isinstance(obj, _loader.MemObject))
         # The address should be exactly the same python object as the key in
         # the objs dictionary.
-        self.assertIs(keys[0], obj.address)
+        self.assertTrue(keys[0] is obj.address)
 
     def test_load_example(self):
         objs = loader.load(_example_dump, show_prog=False)

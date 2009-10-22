@@ -213,6 +213,16 @@ class ObjManager(object):
             for ref in obj.ref_list:
                 ref = unique_address(ref, ref)
                 refs = referrers.get(ref, None)
+                # This is ugly, so it should be explained.
+                # To save memory pressure, referrers will point to one of 3
+                # types.
+                #   1) A simple integer, representing a single referrer
+                #      this saves the allocation of a separate structure
+                #      entirely
+                #   2) A tuple, slightly more efficient than a list, but
+                #      requires creating a new tuple to 'add' an entry.
+                #   3) A list, as before, for things with lots of referrers, we
+                #      use a regular list to let it grow.
                 t = type(refs)
                 if refs is None:
                     refs = address
