@@ -200,19 +200,23 @@ class ObjManager(object):
 
     def compute_referrers(self):
         """For each object, figure out who is referencing it."""
-        referrers = {} # From address => [referred from]
-        id_cache = {}
-        unique_address = id_cache.setdefault 
+        referrers = dict.fromkeys(self.objs, None)
+        id_cache = dict((obj.address, obj.address) for obj in
+                        self.objs.itervalues())
         total = len(self.objs)
         for idx, obj in enumerate(self.objs.itervalues()):
             if self.show_progress and idx & 0x1ff == 0:
                 sys.stderr.write('compute referrers %8d / %8d        \r'
                                  % (idx, total))
             address = obj.address
-            address = unique_address(address, address)
             for ref in obj.ref_list:
-                ref = unique_address(ref, ref)
-                refs = referrers.get(ref, None)
+                try:
+                    ref = id_cache[ref]
+                except KeyError:
+                    # Reference to something outside this set of objects.
+                    # Doesn't matter what it is, we won't be updating it.
+                    continue
+                refs = referrers[ref]
                 # This is ugly, so it should be explained.
                 # To save memory pressure, referrers will point to one of 3
                 # types.
@@ -247,7 +251,9 @@ class ObjManager(object):
             except KeyError:
                 obj.referrers = ()
             else:
-                if type(refs) is int:
+                if refs is None:
+                    obj.referrers = ()
+                elif type(refs) is int:
                     obj.referrers = (refs,)
                 else:
                     obj.referrers = refs
