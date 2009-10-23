@@ -18,9 +18,8 @@ cdef extern from "Python.h":
     ctypedef unsigned long size_t
     ctypedef struct PyObject:
         pass
-    void *realloc(void *, size_t)
-    void *malloc(size_t)
-    void free(void *)
+    void *PyMem_Malloc(size_t)
+    void PyMem_Free(void *)
 
     PyObject *PyDict_GetItem(object d, object key)
     int PyDict_SetItem(object d, object key, object val) except -1
@@ -67,7 +66,7 @@ cdef long *_list_to_ref_list(object refs):
     num_refs = len(refs)
     if num_refs == 0:
         return NULL
-    ref_list = <long*>malloc(sizeof(long)*(num_refs+1))
+    ref_list = <long*>PyMem_Malloc(sizeof(long)*(num_refs+1))
     ref_list[0] = num_refs
     i = 1
     for ref in refs:
@@ -168,7 +167,7 @@ cdef class MemObject:
 
         def __set__(self, value):
             if self._ref_list != NULL:
-                free(self._ref_list)
+                PyMem_Free(self._ref_list)
                 self._ref_list = NULL
             self._ref_list = _list_to_ref_list(value)
 
@@ -189,7 +188,7 @@ cdef class MemObject:
 
         def __set__(self, value):
             if self._referrer_list != NULL:
-                free(self._referrer_list)
+                PyMem_Free(self._referrer_list)
                 self._referrer_list = NULL
             self._referrer_list = _list_to_ref_list(value)
 
@@ -202,10 +201,10 @@ cdef class MemObject:
 
     def __dealloc__(self):
         if self._ref_list != NULL:
-            free(self._ref_list)
+            PyMem_Free(self._ref_list)
             self._ref_list = NULL
         if self._referrer_list != NULL:
-            free(self._referrer_list)
+            PyMem_Free(self._referrer_list)
             self._referrer_list = NULL
 
     def __repr__(self):
