@@ -62,7 +62,7 @@ class TestPerformanceCounter(tests.TestCase):
     def test_create_counter(self):
         counter = perf_counter.perf_counter.get_counter('test-counter')
         self.assertEqual('test-counter', counter.name)
-        self.assertEqual(counter._timer, perf_counter.perf_counter._get_timer())
+        self.assertEqual(counter._timer, perf_counter.perf_counter.get_timer())
         self.assertTrue('test-counter' in perf_counter.perf_counter._counters)
 
     def test_get_counter(self):

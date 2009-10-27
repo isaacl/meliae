@@ -80,7 +80,7 @@ class PerformanceCounter(object):
         try:
             c = self._counters[name]
         except KeyError:
-            c = _Counter(name, self._get_timer())
+            c = _Counter(name, self.get_timer())
             self._counters[name] = c
         return c
 
@@ -95,14 +95,14 @@ class PerformanceCounter(object):
 
 class _LinuxPerformanceCounter(PerformanceCounter):
 
-    def _get_timer(self):
+    def get_timer(self):
         # This returns wall-clock time
         return time.time
 
 
 class _Win32PerformanceCounter(PerformanceCounter):
 
-    def _get_timer(self):
+    def get_timer(self):
         # This returns wall-clock time, but using a much higher precision than
         # time.time() [which has a resolution of only 15ms]
         return time.clock
