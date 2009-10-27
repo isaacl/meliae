@@ -83,11 +83,13 @@ class TestPerformanceCounter(tests.TestCase):
             'sys.stdout.flush(); sys.stdout.close()'],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         p.stdin.write('pre')
+        p.stdin.flush()
         p.stdout.read(3)
         cur_mem, peak_mem = perf_counter.perf_counter.get_memory(p)
         self.assertTrue(isinstance(cur_mem, long))
         self.assertTrue(isinstance(peak_mem, long))
         p.stdin.write('post')
+        p.stdin.flush()
         p.stdout.read()
         self.assertEqual(0, p.wait())
         # We allocated a 40MB string, we should have peaked at at least 20MB more
