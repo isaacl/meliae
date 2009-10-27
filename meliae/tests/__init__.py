@@ -35,6 +35,7 @@ def test_suite():
         'test__loader',
         'test__scanner',
         'test_loader',
+        'test_perf_counter',
         'test_scanner',
         ]
     full_names = [__name__ + '.' + n for n in module_names]
