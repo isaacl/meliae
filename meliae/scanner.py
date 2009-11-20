@@ -27,11 +27,14 @@ size_of = _scanner.size_of
 get_referents = _scanner.get_referents
 
 
-def dump_all_referenced(outf, obj):
+def dump_all_referenced(outf, obj, is_pending=False):
     """Recursively dump everything that is referenced from obj."""
     if isinstance(outf, str):
         outf = open(outf, 'wb')
-    pending = [obj]
+    if is_pending:
+        pending = obj
+    else:
+        pending = [obj]
     last_offset = 0
     seen = _intset.IDSet()
     while last_offset >= 0:
@@ -101,7 +104,7 @@ def dump_all_objects(outf):
     if isinstance(outf, basestring):
         outf = open(outf, 'wb')
     all_objs = gc.get_objects()
-    dump_all_referenced(outf, all_objs)
+    dump_all_referenced(outf, all_objs, is_pending=True)
 
 
 
