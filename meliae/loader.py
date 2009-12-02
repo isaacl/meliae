@@ -160,7 +160,7 @@ class _ObjSummary(object):
             ' Index   Count   %      Size   % Cum     Max Kind'
             ]
         cumulative = 0
-        for i in xrange(20):
+        for i in xrange(min(20, len(self.summaries))):
             summary = self.summaries[i]
             cumulative += summary.total_size
             out.append(
