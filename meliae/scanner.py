@@ -1,14 +1,14 @@
 # Copyright (C) 2009 Canonical Ltd
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
 # published by the Free Software Foundation.
-# 
+#
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -59,7 +59,10 @@ def dump_gc_objects(outf, recurse_depth=1):
     """Dump everything that is available via gc.get_objects().
     """
     if isinstance(outf, basestring):
+        opened = True
         outf = open(outf, 'wb')
+    else:
+        opened = False
     # Get the list of everything before we start building new objects
     all_objs = gc.get_objects()
     # Dump out a few specific objects, so they don't get repeated forever
@@ -89,6 +92,11 @@ def dump_gc_objects(outf, recurse_depth=1):
     for obj in all_objs:
         _scanner.dump_object_info(outf, obj, nodump=nodump,
                                   recurse_depth=recurse_depth)
+    del all_objs[:]
+    if opened:
+        outf.close()
+    else:
+        outf.flush()
 
 
 def dump_all_objects(outf):
@@ -102,9 +110,17 @@ def dump_all_objects(outf):
     times.
     """
     if isinstance(outf, basestring):
+        opened = True
         outf = open(outf, 'wb')
+    else:
+        opened = False
     all_objs = gc.get_objects()
     dump_all_referenced(outf, all_objs, is_pending=True)
+    del all_objs[:]
+    if opened:
+        outf.close()
+    else:
+        outf.flush()
 
 
 
