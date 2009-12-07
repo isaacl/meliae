@@ -35,7 +35,7 @@ def dump_all_referenced(outf, obj, is_pending=False):
         pending = obj
     else:
         pending = [obj]
-    last_offset = 0
+    last_offset = len(pending) - 1
     seen = _intset.IDSet()
     while last_offset >= 0:
         next = pending[last_offset]

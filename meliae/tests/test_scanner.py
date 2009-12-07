@@ -25,13 +25,13 @@ from meliae.tests import test__scanner
 
 class TestDumpAllReferenced(tests.TestCase):
 
-    def assertDumpAllReferenced(self, ref_objs, obj):
+    def assertDumpAllReferenced(self, ref_objs, obj, is_pending=False):
         t = tempfile.TemporaryFile(prefix='meliae-')
         # On some platforms TemporaryFile returns a wrapper object with 'file'
         # being the real object, on others, the returned object *is* the real
         # file object
         t_file = getattr(t, 'file', t)
-        scanner.dump_all_referenced(t_file, obj)
+        scanner.dump_all_referenced(t_file, obj, is_pending=is_pending)
         t.flush()
         t.seek(0)
         # We don't care if the same entries are printed multiple times, just
@@ -64,6 +64,13 @@ class TestDumpAllReferenced(tests.TestCase):
         t = (k, v)
         l = [k, v, t]
         self.assertDumpAllReferenced([k, v, l, t], l)
+
+    def test_dump_list_of_tuple_is_pending(self):
+        k = 10245
+        v = 'a value string'
+        t = (v,)
+        l = [t, k]
+        self.assertDumpAllReferenced([k, t, v], l, is_pending=True)
 
     def test_dump_recursive(self):
         a = 1
