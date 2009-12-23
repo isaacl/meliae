@@ -143,20 +143,20 @@ cdef class MemObject:
                                   # This is valid, because we put these objects
                                   # into a dict anyway, so we need a PyInt
                                   # And we can just share it
-    cdef readonly object type_str # pointer to a PyString, this is expected to be shared
-                                  # with many other instances, but longer than 4 bytes
-    cdef public long size
+    cdef readonly object type_str # pointer to a PyString, this is expected to
+                                  # be shared with many other instances, but
+                                  # longer than 4 bytes
+    cdef public long size # Number of bytes consumed by this instance
+    # TODO: Right now this points to the integer offset, which we then look up
+    #       in the OM dict. However, if we are going to go with PyObject *, why
+    #       not just point to the final object anyway...
     cdef RefList *_ref_list # An array of addresses that this object
                             # referenced. May be NULL if len() == 0
-                            # If not null, the first item is the length of the
-                            # list
     cdef readonly int length # Object length (ob_size), aka len(object)
     cdef public object value    # May be None, a PyString or a PyInt
     cdef readonly object name     # Name of this object (only valid for
                                   # modules, etc)
     cdef RefList *_referrer_list # An array of addresses that refer to this,
-                                 # if not null, the first item indicates the
-                                 # length of the list
 
     cdef public unsigned long total_size # Size of everything referenced from
                                          # this object
