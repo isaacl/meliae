@@ -27,6 +27,11 @@ cdef extern from "Python.h":
     void Py_DECREF(PyObject*)
 
 
+ctypedef struct RefList:
+    long size
+    PyObject *refs[0]
+
+
 cdef object _set_default(object d, object val):
     """Either return the value in the dict, or return 'val'.
 
@@ -43,59 +48,57 @@ cdef object _set_default(object d, object val):
     return val
 
 
-cdef object _ref_list_to_list(PyObject **ref_list):
+cdef object _ref_list_to_list(RefList *ref_list):
     """Convert the notation of [len, items, ...] into [items].
 
     :param ref_list: A pointer to NULL, or to a list of longs. The list should
         start with the count of items
     """
-    cdef long i, size
+    cdef long i
     # TODO: Always return a tuple, we already know the width, and this prevents
     #       double malloc()
 
     if ref_list == NULL:
         return ()
-    size = <long>(ref_list[0])
     refs = []
-    for i from 1 <= i <= size:
-        refs.append(<object>(ref_list[i]))
+    for i from 0 <= i < ref_list.size:
+        refs.append(<object>(ref_list.refs[i]))
     return refs
 
 
-cdef PyObject **_list_to_ref_list(object refs) except? NULL:
+cdef RefList *_list_to_ref_list(object refs) except? NULL:
     cdef long i, num_refs
-    cdef PyObject **ref_list
+    cdef RefList *ref_list
 
     num_refs = len(refs)
     if num_refs == 0:
         return NULL
-    ref_list = <PyObject**>PyMem_Malloc(sizeof(PyObject*)*(num_refs+1))
-    ref_list[0] = <PyObject*>(num_refs)
-    i = 1
+    ref_list = <RefList *>PyMem_Malloc(sizeof(RefList) +
+                                       sizeof(PyObject*)*num_refs)
+    ref_list.size = num_refs
+    i = 0
     for ref in refs:
-        # TODO: we *should* incref here, but I'm cheating
-        ref_list[i] = <PyObject*>ref
-        Py_INCREF(ref_list[i])
+        ref_list.refs[i] = <PyObject*>ref
+        Py_INCREF(ref_list.refs[i])
         i = i + 1
     return ref_list
 
 
-cdef object _format_list(PyObject **ref_list):
-    cdef long i, num_refs, max_refs
+cdef object _format_list(RefList *ref_list):
+    cdef long i, max_refs
 
     if ref_list == NULL:
         return ''
-    num_refs = <long>ref_list[0]
-    max_refs = num_refs
+    max_refs = ref_list.size
     if max_refs > 10:
         max_refs = 10
     ref_str = ['[']
     for i from 0 <= i < max_refs:
         if i == 0:
-            ref_str.append('%d' % (<object>ref_list[i+1]))
+            ref_str.append('%d' % (<object>ref_list.refs[i]))
         else:
-            ref_str.append(', %d' % (<object>ref_list[i+1]))
-    if num_refs > 10:
+            ref_str.append(', %d' % (<object>ref_list.refs[i]))
+    if ref_list.size > 10:
         ref_str.append(', ...]')
     else:
         ref_str.append(']')
@@ -130,17 +133,17 @@ cdef class MemObject:
     cdef readonly object type_str # pointer to a PyString, this is expected to be shared
                                   # with many other instances, but longer than 4 bytes
     cdef public long size
-    cdef PyObject **_ref_list # An array of addresses that this object
-                              # referenced. May be NULL if len() == 0
-                              # If not null, the first item is the length of the
-                              # list
+    cdef RefList *_ref_list # An array of addresses that this object
+                            # referenced. May be NULL if len() == 0
+                            # If not null, the first item is the length of the
+                            # list
     cdef readonly int length # Object length (ob_size), aka len(object)
     cdef public object value    # May be None, a PyString or a PyInt
     cdef readonly object name     # Name of this object (only valid for
                                   # modules, etc)
-    cdef PyObject **_referrer_list # An array of addresses that refer to this,
-                                   # if not null, the first item indicates the
-                                   # length of the list
+    cdef RefList *_referrer_list # An array of addresses that refer to this,
+                                 # if not null, the first item indicates the
+                                 # length of the list
 
     cdef public unsigned long total_size # Size of everything referenced from
                                          # this object
@@ -176,7 +179,7 @@ cdef class MemObject:
         def __get__(self):
             if self._ref_list == NULL:
                 return 0
-            return <long>self._ref_list[0]
+            return self._ref_list.size
 
     property referrers:
         """The list of objects that reference this object.
@@ -197,20 +200,18 @@ cdef class MemObject:
         def __get__(self):
             if self._referrer_list == NULL:
                 return 0
-            return <long>self._referrer_list[0]
+            return self._referrer_list.size
 
     def __dealloc__(self):
-        cdef long i, size
+        cdef long i
         if self._ref_list != NULL:
-            size = <long>self._ref_list[0]
-            for i from 1 <= i < size:
-                Py_DECREF(self._ref_list[i])
+            for i from 0 <= i < self._ref_list.size:
+                Py_DECREF(self._ref_list.refs[i])
             PyMem_Free(self._ref_list)
             self._ref_list = NULL
         if self._referrer_list != NULL:
-            size = <long>self._referrer_list[0]
-            for i from 1 <= i < size:
-                Py_DECREF(self._referrer_list[i])
+            for i from 0 <= i < self._referrer_list.size:
+                Py_DECREF(self._referrer_list.refs[i])
             PyMem_Free(self._referrer_list)
             self._referrer_list = NULL
 
@@ -226,14 +227,14 @@ cdef class MemObject:
             ref_space = ''
             ref_str = ''
         else:
-            num_refs = <long>self._ref_list[0]
+            num_refs = self._ref_list.size
             ref_str = _format_list(self._ref_list)
             ref_space = ' '
         if self._referrer_list == NULL:
             referrer_str = ''
         else:
             referrer_str = ', %d referrers %s' % (
-                <long>self._referrer_list[0],
+                self._referrer_list.size,
                 _format_list(self._referrer_list))
         if self.value is None:
             value_str = ''
