@@ -48,6 +48,17 @@ cdef object _set_default(object d, object val):
     return val
 
 
+cdef _free_ref_list(RefList *ref_list):
+    """Decref and free the list."""
+    cdef long i
+
+    if ref_list == NULL:
+        return
+    for i from 0 <= i < ref_list.size:
+        Py_DECREF(ref_list.refs[i])
+    PyMem_Free(ref_list)
+
+
 cdef object _ref_list_to_list(RefList *ref_list):
     """Convert the notation of [len, items, ...] into [items].
 
@@ -169,9 +180,7 @@ cdef class MemObject:
             return _ref_list_to_list(self._ref_list)
 
         def __set__(self, value):
-            if self._ref_list != NULL:
-                PyMem_Free(self._ref_list)
-                self._ref_list = NULL
+            _free_ref_list(self._ref_list)
             self._ref_list = _list_to_ref_list(value)
 
     property num_refs:
@@ -190,9 +199,7 @@ cdef class MemObject:
             return _ref_list_to_list(self._referrer_list)
 
         def __set__(self, value):
-            if self._referrer_list != NULL:
-                PyMem_Free(self._referrer_list)
-                self._referrer_list = NULL
+            _free_ref_list(self._referrer_list)
             self._referrer_list = _list_to_ref_list(value)
 
     property num_referrers:
@@ -204,16 +211,10 @@ cdef class MemObject:
 
     def __dealloc__(self):
         cdef long i
-        if self._ref_list != NULL:
-            for i from 0 <= i < self._ref_list.size:
-                Py_DECREF(self._ref_list.refs[i])
-            PyMem_Free(self._ref_list)
-            self._ref_list = NULL
-        if self._referrer_list != NULL:
-            for i from 0 <= i < self._referrer_list.size:
-                Py_DECREF(self._referrer_list.refs[i])
-            PyMem_Free(self._referrer_list)
-            self._referrer_list = NULL
+        _free_ref_list(self._ref_list)
+        self._ref_list = NULL
+        _free_ref_list(self._referrer_list)
+        self._referrer_list = NULL
 
     def __repr__(self):
         cdef int i, max_refs
