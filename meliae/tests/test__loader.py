@@ -46,6 +46,17 @@ class TestMemObject(tests.TestCase):
         mem = _loader.MemObject(1234, 'tuple', 12, [])
         self.assertEqual(0, mem.num_refs)
 
+    def test__getitem__(self):
+        mem = _loader.MemObject(1234, 'tuple', 12, [])
+        def get(offset):
+            return mem[offset]
+        self.assertRaises(IndexError, get, 0)
+        self.assertRaises(IndexError, get, 1)
+        self.assertRaises(IndexError, get, -1)
+        mem = _loader.MemObject(1234, 'tuple', 20, [4567, 8901])
+        self.assertEqual(4567, mem[0])
+        self.assertEqual(8901, mem[1])
+
     def test_num_referrers(self):
         mem = _loader.MemObject(1234, 'tuple', 20, [4567, 8901])
         mem.referrers = ()

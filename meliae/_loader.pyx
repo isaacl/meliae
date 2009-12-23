@@ -25,6 +25,8 @@ cdef extern from "Python.h":
     int PyDict_SetItem(object d, object key, object val) except -1
     void Py_INCREF(PyObject*)
     void Py_DECREF(PyObject*)
+    object PyTuple_New(Py_ssize_t)
+    object PyTuple_SET_ITEM(object, Py_ssize_t, object)
 
 
 ctypedef struct RefList:
@@ -67,7 +69,7 @@ cdef object _ref_list_to_list(RefList *ref_list):
     """
     cdef long i
     # TODO: Always return a tuple, we already know the width, and this prevents
-    #       double malloc()
+    #       double malloc(). However, this probably isn't a critical code path
 
     if ref_list == NULL:
         return ()
@@ -266,6 +268,19 @@ cdef class MemObject:
                 % (self.__class__.__name__, self.address, self.type_str,
                    name_str, self.size, num_refs, ref_space, ref_str,
                    referrer_str, value_str, total_size_str))
+
+    def __getitem__(self, offset):
+        cdef long off
+        cdef PyObject *res
+
+        if self._ref_list == NULL:
+            raise IndexError('%s has no refs' % (self,))
+        off = offset
+        if off >= self._ref_list.size:
+            raise IndexError('%s has only %d refs'
+                             % (self, self._ref_list.size))
+        res = self._ref_list.refs[off]
+        return <object>res
 
     def _intern_from_cache(self, cache):
         self.address = _set_default(cache, self.address)
