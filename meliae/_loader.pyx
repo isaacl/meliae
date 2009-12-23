@@ -59,7 +59,7 @@ cdef object _ref_list_to_list(long *ref_list):
     return refs
 
 
-cdef long *_list_to_ref_list(object refs):
+cdef long *_list_to_ref_list(object refs) except? NULL:
     cdef long i, num_refs, *ref_list
     cdef unsigned long temp
 

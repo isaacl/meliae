@@ -230,7 +230,7 @@ class ObjManager(object):
                 t = type(refs)
                 if refs is None:
                     refs = address
-                elif t is int:
+                elif t in (int, long):
                     refs = (refs, address)
                 elif t is tuple:
                     if len(refs) >= 10:
@@ -253,7 +253,7 @@ class ObjManager(object):
             else:
                 if refs is None:
                     obj.referrers = ()
-                elif type(refs) is int:
+                elif type(refs) in (int, long):
                     obj.referrers = (refs,)
                 else:
                     obj.referrers = refs
