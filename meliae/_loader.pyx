@@ -21,12 +21,18 @@ cdef extern from "Python.h":
     void *PyMem_Malloc(size_t)
     void PyMem_Free(void *)
 
+    long PyObject_Hash(PyObject *) except -1
+
     PyObject *PyDict_GetItem(object d, object key)
     int PyDict_SetItem(object d, object key, object val) except -1
     void Py_INCREF(PyObject*)
+    void Py_XDECREF(PyObject*)
     void Py_DECREF(PyObject*)
     object PyTuple_New(Py_ssize_t)
     object PyTuple_SET_ITEM(object, Py_ssize_t, object)
+    int PyObject_RichCompareBool(PyObject *, PyObject *, int) except -1
+    int Py_EQ
+    void memset(void *, int, size_t)
 
 
 ctypedef struct RefList:
@@ -116,6 +122,107 @@ cdef object _format_list(RefList *ref_list):
     else:
         ref_str.append(']')
     return ''.join(ref_str)
+
+
+cdef struct _MemObject:
+    # """The raw C structure, used to minimize memory allocation size."""
+    PyObject *address
+    PyObject *type_str
+    long size
+    RefList *ref_list
+    int length
+    PyObject *value
+    PyObject *name
+    RefList *referrer_list
+    unsigned long total_size
+
+
+cdef _MemObject *_dummy
+_dummy = <_MemObject*>(-1)
+
+
+cdef class MemObjectCollection:
+    """Track a bunch of _MemObject instances."""
+
+    cdef readonly int _table_mask  # N slots = table_mask + 1
+    cdef readonly int _active      # How many slots have real data
+    cdef readonly int _filled      # How many slots have real or dummy
+    cdef _MemObject* _table # _MemObjects are stored inline
+
+    def __init__(self):
+        self._table_mask = 1024 - 1
+        self._table = <_MemObject*>PyMem_Malloc(sizeof(_MemObject)*1024)
+        memset(self._table, 0, sizeof(_MemObject)*1024)
+
+    cdef _MemObject* _lookup(self, PyObject *address) except NULL:
+        cdef long the_hash
+        cdef size_t i, n_lookup
+        cdef long mask
+        cdef _MemObject *table, *slot, *free_slot
+
+        the_hash = PyObject_Hash(address)
+        i = <size_t>the_hash
+        mask = self._table_mask
+        table = self._table
+        free_slot = NULL
+        for n_lookup from 0 <= n_lookup <= <size_t>mask: # Don't loop forever
+            slot = &table[i & mask]
+            if slot.address == NULL:
+                # Found a blank spot
+                if free_slot != NULL:
+                    # Did we find an earlier _dummy entry?
+                    return free_slot
+                else:
+                    return slot
+            if slot.address == address:
+                # Found an exact pointer to the key
+                return slot
+            if slot == _dummy:
+                if free_slot == NULL:
+                    free_slot = slot
+            elif PyObject_RichCompareBool(slot.address, address, Py_EQ):
+                # Both py_key and cur belong in this slot, return it
+                return slot
+            i = i + 1 + n_lookup
+        raise AssertionError('should never get here')
+
+    def _test_lookup(self, address):
+        cdef _MemObject *slot 
+
+        slot = self._lookup(<PyObject *>address)
+        return (slot - self._table)
+
+    # def __contains__(self, address):
+    #     pass
+
+    # def __getitem__(self, address):
+    #     pass
+
+    # def __delitem__(self, address):
+    #     pass
+
+    # def __setitem__(self, address, value):
+    #     pass
+
+    def __dealloc__(self):
+        cdef long i
+        cdef _MemObject *cur
+
+        for i from 0 <= i < self._table_mask:
+            cur = self._table + i
+            if cur.address != NULL:
+                Py_XDECREF(cur.type_str)
+                cur.type_str = NULL
+                _free_ref_list(cur.ref_list)
+                cur.ref_list = NULL
+                Py_XDECREF(cur.value)
+                cur.value = NULL
+                Py_XDECREF(cur.name)
+                cur.name = NULL
+                _free_ref_list(cur.referrer_list)
+                cur.referrer_list = NULL
+        PyMem_Free(self._table)
+        self._table = NULL
 
 
 cdef class MemObject:

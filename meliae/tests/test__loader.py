@@ -112,3 +112,23 @@ class TestMemObject(tests.TestCase):
         mem.total_size = int(1024*1024*10.5)
         self.assertEqual('MemObject(1234, int, 12 bytes'
                          ', 0 refs, 12345, 10.5MiB)', repr(mem))
+
+
+class TestMemObjectCollection(tests.TestCase):
+    
+    def test__init__(self):
+        moc = _loader.MemObjectCollection()
+        self.assertEqual(0, moc._active)
+        self.assertEqual(0, moc._filled)
+        self.assertEqual(1023, moc._table_mask)
+
+    def test__lookup_direct(self):
+        moc = _loader.MemObjectCollection()
+        self.assertEqual(1023, moc._table_mask)
+        self.assertEqual(0, moc._test_lookup(0))
+        self.assertEqual(0, moc._test_lookup(1024))
+        self.assertEqual(255, moc._test_lookup(255))
+        self.assertEqual(933, moc._test_lookup(933))
+        self.assertEqual(933, moc._test_lookup(933+1024))
+        self.assertEqual(933, moc._test_lookup(933L+1024L))
+        self.assertEqual(933, moc._test_lookup(933L+2**32-1))
