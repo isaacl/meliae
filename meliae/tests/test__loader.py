@@ -132,3 +132,52 @@ class TestMemObjectCollection(tests.TestCase):
         self.assertEqual(933, moc._test_lookup(933+1024))
         self.assertEqual(933, moc._test_lookup(933L+1024L))
         self.assertEqual(933, moc._test_lookup(933L+2**32-1))
+
+    def test__lookup_collide(self):
+        moc = _loader.MemObjectCollection()
+        self.assertEqual(1023, moc._table_mask)
+        self.assertEqual(0, moc._test_lookup(0))
+        self.assertEqual(0, moc._test_lookup(1024))
+        moc.add(0, 'foo', 100)
+        self.assertEqual(0, moc._test_lookup(0))
+        self.assertEqual(1, moc._test_lookup(1024))
+        moc.add(1024, 'bar', 200)
+        self.assertEqual(0, moc._test_lookup(0))
+        self.assertEqual(1, moc._test_lookup(1024))
+
+    def test__contains__(self):
+        moc = _loader.MemObjectCollection()
+        self.assertEqual(0, moc._test_lookup(0))
+        self.assertEqual(0, moc._test_lookup(1024))
+        self.assertFalse(0 in moc)
+        self.assertFalse(1024 in moc)
+        moc.add(0, 'foo', 100)
+        self.assertTrue(0 in moc)
+        self.assertFalse(1024 in moc)
+        moc.add(1024, 'bar', 200)
+        self.assertTrue(0 in moc)
+        self.assertTrue(1024 in moc)
+
+    def test__getitem__(self):
+        moc = _loader.MemObjectCollection()
+        def get(offset):
+            return moc[offset]
+        self.assertRaises(KeyError, get, 0)
+        self.assertRaises(KeyError, get, 1024)
+        moc.add(0, 'foo', 100)
+        mop = moc[0]
+        self.assertTrue(isinstance(mop, _loader._MemObjectProxy))
+        self.assertEqual('foo', mop.type_str)
+        self.assertEqual(100, mop.size)
+        self.assertRaises(KeyError, get, 1024)
+
+    def test_add_until_resize(self):
+        moc = _loader.MemObjectCollection()
+        for i in xrange(1025):
+            moc.add(i, 'foo', 100+i)
+        self.assertEqual(1025, moc._filled)
+        self.assertEqual(1025, moc._active)
+        self.assertEqual(2047, moc._table_mask)
+        mop = moc[1024]
+        self.assertEqual(1024, mop.address)
+        self.assertEqual(1124, mop.size)

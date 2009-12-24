@@ -1,14 +1,14 @@
 # Copyright (C) 2009 Canonical Ltd
-# 
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
 # published by the Free Software Foundation.
-# 
+#
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -33,6 +33,8 @@ cdef extern from "Python.h":
     int PyObject_RichCompareBool(PyObject *, PyObject *, int) except -1
     int Py_EQ
     void memset(void *, int, size_t)
+    # void fprintf(void *, char *, ...)
+    # void *stderr
 
 
 ctypedef struct RefList:
@@ -47,7 +49,7 @@ cdef object _set_default(object d, object val):
     may be slightly worse because it does 2 dict lookups?)
     """
     cdef PyObject *tmp
-    
+
     tmp = PyDict_GetItem(d, val)
     if tmp == NULL:
         PyDict_SetItem(d, val, val)
@@ -137,8 +139,93 @@ cdef struct _MemObject:
     unsigned long total_size
 
 
-cdef _MemObject *_dummy
-_dummy = <_MemObject*>(-1)
+cdef PyObject *_dummy
+dummy = object()
+_dummy = <PyObject *>dummy
+
+
+cdef class MemObjectCollection
+
+
+cdef class _MemObjectProxy:
+    """This class proxies between a real Python object and MOC's data.
+
+    MOC stores the data as a fairly efficient table, without the overhead of
+    having a regular python object for every data point. However, the rest of
+    python code needs to interact with a real python object, so we generate
+    these on-the-fly.
+    """
+
+    # Note that it is possible for the table to be mutated while this object is
+    # live, which is why we don't hold a direct pointer to the _MemObject, and
+    # instead go through a table lookup for all attributes.  An alternative
+    # option would be to hold a copy-by-value, and only go back to the original
+    # object in __set__ functions.
+    # Alternatively, we could keep track of all proxy objects returned, and
+    # point them to the new locations when things move.
+    # We may want to keep track of them anyway, so that we don't create 20
+    # proxy objects for the same address. TBD
+
+    cdef MemObjectCollection collection
+    cdef public object address
+
+    def __init__(self, address, collection):
+        self.address = address
+        self.collection = collection
+
+    cdef _MemObject *_get_obj(self) except NULL:
+        cdef _MemObject *slot
+
+        slot = self.collection._lookup(self.address)
+        if slot.address == NULL or slot.address == _dummy:
+            raise RuntimeError('we failed to lookup the obj at address %d'
+                               % (self.address,))
+        return slot
+
+    property type_str:
+        """The type of this object."""
+        def __get__(self):
+            cdef _MemObject *slot
+
+            slot = self._get_obj()
+            return <object>(slot.type_str)
+
+    property size:
+        """The number of bytes allocated for this object."""
+        def __get__(self):
+            cdef _MemObject *slot
+
+            slot = self._get_obj()
+            return slot.size
+
+        def __set__(self, value):
+            cdef _MemObject *slot
+
+            slot = self._get_obj()
+            slot.size = value
+
+    def __len__(self):
+        cdef _MemObject *slot
+
+        slot = self._get_obj()
+        if slot.ref_list == NULL:
+            return 0
+        return slot.ref_list.size
+
+    # def __getitem__(self, offset):
+    #     cdef _MemObject *slot
+    #     cdef PyObject *item_addr
+    #     cdef long off
+
+    #     slot = self._get_obj()
+    #     if slot.ref_list == NULL:
+    #         raise IndexError('%s has no references' % (self,))
+    #     off = offset
+    #     if off >= slot.ref_list.size:
+    #         raise IndexError('%s has only %d (not %d) references'
+    #                          % (self, slot.ref_list.size, offset))
+    #     item_addr = slot.ref_list.refs[off]
+    #     return self.collection[<object>item_addr]
 
 
 cdef class MemObjectCollection:
@@ -154,13 +241,15 @@ cdef class MemObjectCollection:
         self._table = <_MemObject*>PyMem_Malloc(sizeof(_MemObject)*1024)
         memset(self._table, 0, sizeof(_MemObject)*1024)
 
-    cdef _MemObject* _lookup(self, PyObject *address) except NULL:
+    cdef _MemObject* _lookup(self, address) except NULL:
         cdef long the_hash
         cdef size_t i, n_lookup
         cdef long mask
         cdef _MemObject *table, *slot, *free_slot
+        cdef PyObject *py_addr
 
-        the_hash = PyObject_Hash(address)
+        py_addr = <PyObject *>address
+        the_hash = PyObject_Hash(py_addr)
         i = <size_t>the_hash
         mask = self._table_mask
         table = self._table
@@ -174,53 +263,176 @@ cdef class MemObjectCollection:
                     return free_slot
                 else:
                     return slot
-            if slot.address == address:
+            if slot.address == py_addr:
                 # Found an exact pointer to the key
                 return slot
-            if slot == _dummy:
+            if slot.address == _dummy:
                 if free_slot == NULL:
                     free_slot = slot
-            elif PyObject_RichCompareBool(slot.address, address, Py_EQ):
+            elif PyObject_RichCompareBool(slot.address, py_addr, Py_EQ):
                 # Both py_key and cur belong in this slot, return it
                 return slot
             i = i + 1 + n_lookup
-        raise AssertionError('should never get here')
+        raise AssertionError('we failed to find an open slot')
+
+    cdef _clear_slot(self, int offset):
+        cdef _MemObject *cur
+
+        cur = self._table + offset
+        if cur.address == NULL: # Already cleared
+            return
+        Py_XDECREF(cur.address)
+        Py_XDECREF(cur.type_str)
+        cur.type_str = NULL
+        _free_ref_list(cur.ref_list)
+        cur.ref_list = NULL
+        Py_XDECREF(cur.value)
+        cur.value = NULL
+        Py_XDECREF(cur.name)
+        cur.name = NULL
+        _free_ref_list(cur.referrer_list)
+        cur.referrer_list = NULL
 
     def _test_lookup(self, address):
-        cdef _MemObject *slot 
+        cdef _MemObject *slot
 
-        slot = self._lookup(<PyObject *>address)
+        slot = self._lookup(address)
         return (slot - self._table)
 
-    # def __contains__(self, address):
-    #     pass
+    def __contains__(self, address):
+        cdef _MemObject *slot
 
-    # def __getitem__(self, address):
-    #     pass
+        slot = self._lookup(address)
+        if slot.address == NULL or slot.address == _dummy:
+            return False
+        return True
+
+    def __getitem__(self, address):
+        cdef _MemObject *slot
+
+        slot = self._lookup(address)
+        if slot.address == NULL or slot.address == _dummy:
+            raise KeyError('address %s not present' % (address,))
+        return _MemObjectProxy(address, self)
 
     # def __delitem__(self, address):
     #     pass
 
-    # def __setitem__(self, address, value):
-    #     pass
+    #def __setitem__(self, address, value):
+    #    """moc[address] = value"""
+    #    pass
+
+    cdef int _insert_clean(self, _MemObject *entry) except -1:
+        """Copy _MemObject into the table.
+
+        We know that this _MemObject is unique, and we know that self._table
+        contains no _dummy entries. So we can do the lookup cheaply, without
+        any equality checks, etc.
+        """
+        cdef long the_hash
+        cdef size_t i, n_lookup, mask
+        cdef _MemObject *slot, *table
+
+        assert entry != NULL and entry.address != NULL
+        mask = <size_t>self._table_mask
+        the_hash = <size_t>PyObject_Hash(entry.address)
+        o = int(<object>entry.address)
+        for n_lookup from 0 <= n_lookup < mask:
+            slot = &self._table[i & mask]
+            if slot.address == NULL:
+                slot[0] = entry[0]
+                self._filled += 1
+                self._active += 1
+                return 1
+            i = i + 1 + n_lookup
+        raise RuntimeError('could not find a free slot after %d lookups'
+                           % (n_lookup,))
+
+    cdef int _resize(self, int min_active) except -1:
+        """Resize the internal table.
+
+        We will be big enough to hold at least 'min_active' entries. We will
+        create a copy of all data, leaving out dummy entries.
+
+        :return: The new table size.
+        """
+        cdef int new_size, remaining
+        cdef size_t n_bytes
+        cdef _MemObject *old_table, *old_slot, *new_table
+
+        new_size = 1024
+        while new_size <= min_active and new_size > 0:
+            new_size <<= 1
+        if new_size <= 0:
+            raise MemoryError('table size too large for %d entries'
+                              % (min_active,))
+        n_bytes = sizeof(_MemObject)*new_size
+        new_table = <_MemObject*>PyMem_Malloc(n_bytes)
+        if new_table == NULL:
+            raise MemoryError('Failed to allocate %d bytes' % (n_bytes,))
+        memset(new_table, 0, n_bytes)
+        old_slot = old_table = self._table
+        self._table = new_table
+        self._table_mask = new_size - 1
+        remaining = self._active
+        self._filled = 0
+        self._active = 0
+        # fprintf(stderr, "malloced %d %d @%x\n", new_size, n_bytes, new_table)
+
+        while remaining > 0:
+            if old_slot.address == NULL:
+                pass # empty
+            elif old_slot.address == _dummy:
+                pass # dummy
+            else:
+                remaining -= 1
+                self._insert_clean(old_slot)
+            old_slot += 1
+        # Moving everything over is refcount neutral, so we just free the old
+        # table
+        PyMem_Free(old_table)
+        return new_size
+
+
+    def add(self, address, type_str, size, ref_list=(), length=0,
+            value=None, name=None, referrer_list=(), total_size=0):
+        """Add a new MemObject to this collection."""
+        cdef _MemObject *slot
+        cdef PyObject *addr
+
+        slot = self._lookup(address)
+        if slot.address != NULL and slot.address != _dummy:
+            # We are overwriting an existing entry, for now, fail
+            # Probably all we have to do is clear the slot first, then continue
+            assert False, "We don't support overwrite yet."
+        addr = <PyObject *>address
+        if slot.address == NULL:
+            self._filled += 1
+        self._active += 1
+        Py_INCREF(addr)
+        slot.address = addr
+        slot.type_str = <PyObject *>type_str
+        Py_INCREF(slot.type_str)
+        slot.size = size
+        slot.ref_list = _list_to_ref_list(ref_list)
+        slot.length = length
+        slot.value = <PyObject *>value
+        Py_INCREF(slot.value)
+        slot.name = <PyObject *>name
+        Py_INCREF(slot.name)
+        slot.referrer_list = _list_to_ref_list(referrer_list)
+        slot.total_size = total_size
+
+        if self._filled * 3 > (self._table_mask + 1) * 2:
+            # We need to grow
+            # fprintf(stderr, "resizing to %d\n", self._active * 2)
+            self._resize(self._active * 2)
 
     def __dealloc__(self):
         cdef long i
-        cdef _MemObject *cur
 
         for i from 0 <= i < self._table_mask:
-            cur = self._table + i
-            if cur.address != NULL:
-                Py_XDECREF(cur.type_str)
-                cur.type_str = NULL
-                _free_ref_list(cur.ref_list)
-                cur.ref_list = NULL
-                Py_XDECREF(cur.value)
-                cur.value = NULL
-                Py_XDECREF(cur.name)
-                cur.name = NULL
-                _free_ref_list(cur.referrer_list)
-                cur.referrer_list = NULL
+            self._clear_slot(i)
         PyMem_Free(self._table)
         self._table = NULL
 
@@ -369,7 +581,7 @@ cdef class MemObject:
                 total_size = total_size / 1024
                 order = 'GiB'
             total_size_str = ', %.1f%s' % (total_size, order)
-            
+
 
         return ('%s(%d, %s%s, %d bytes, %d refs%s%s%s%s%s)'
                 % (self.__class__.__name__, self.address, self.type_str,
@@ -416,3 +628,4 @@ cdef class MemObject:
         return '{"address": %d, "type": "%s", "size": %d, %s%s%s"refs": [%s]}' % (
             self.address, self.type_str, self.size, name, length, value,
             ', '.join(refs))
+
