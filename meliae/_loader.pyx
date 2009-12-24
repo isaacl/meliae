@@ -139,9 +139,8 @@ cdef struct _MemObject:
     unsigned long total_size
 
 
-cdef PyObject *_dummy
-dummy = object()
-_dummy = <PyObject *>dummy
+cdef _MemObject *_dummy
+dummy = <_MemObject>(-1)
 
 
 cdef class MemObjectCollection
@@ -234,18 +233,18 @@ cdef class MemObjectCollection:
     cdef readonly int _table_mask  # N slots = table_mask + 1
     cdef readonly int _active      # How many slots have real data
     cdef readonly int _filled      # How many slots have real or dummy
-    cdef _MemObject* _table # _MemObjects are stored inline
+    cdef _MemObject** _table # _MemObjects are stored inline
 
     def __init__(self):
         self._table_mask = 1024 - 1
-        self._table = <_MemObject*>PyMem_Malloc(sizeof(_MemObject)*1024)
-        memset(self._table, 0, sizeof(_MemObject)*1024)
+        self._table = <_MemObject**>PyMem_Malloc(sizeof(_MemObject*)*1024)
+        memset(self._table, 0, sizeof(_MemObject*)*1024)
 
-    cdef _MemObject* _lookup(self, address) except NULL:
+    cdef _MemObject** _lookup(self, address) except NULL:
         cdef long the_hash
         cdef size_t i, n_lookup
         cdef long mask
-        cdef _MemObject *table, *slot, *free_slot
+        cdef _MemObject **table, **slot, **free_slot
         cdef PyObject *py_addr
 
         py_addr = <PyObject *>address
@@ -256,20 +255,20 @@ cdef class MemObjectCollection:
         free_slot = NULL
         for n_lookup from 0 <= n_lookup <= <size_t>mask: # Don't loop forever
             slot = &table[i & mask]
-            if slot.address == NULL:
+            if slot[0] == NULL:
                 # Found a blank spot
                 if free_slot != NULL:
                     # Did we find an earlier _dummy entry?
                     return free_slot
                 else:
                     return slot
-            if slot.address == py_addr:
+            if slot[0].address == py_addr:
                 # Found an exact pointer to the key
                 return slot
-            if slot.address == _dummy:
+            if slot[0] == _dummy:
                 if free_slot == NULL:
                     free_slot = slot
-            elif PyObject_RichCompareBool(slot.address, py_addr, Py_EQ):
+            elif PyObject_RichCompareBool(slot[0].address, py_addr, Py_EQ):
                 # Both py_key and cur belong in this slot, return it
                 return slot
             i = i + 1 + n_lookup
@@ -292,21 +291,21 @@ cdef class MemObjectCollection:
         slot.referrer_list = NULL
 
     def _test_lookup(self, address):
-        cdef _MemObject *slot
+        cdef _MemObject **slot
 
         slot = self._lookup(address)
         return (slot - self._table)
 
     def __contains__(self, address):
-        cdef _MemObject *slot
+        cdef _MemObject **slot
 
         slot = self._lookup(address)
-        if slot.address == NULL or slot.address == _dummy:
+        if slot[0] == NULL or slot[0] == _dummy:
             return False
         return True
 
     def __getitem__(self, at):
-        cdef _MemObject *slot
+        cdef _MemObject **slot
 
         if isinstance(at, _MemObjectProxy):
             address = at.address
@@ -314,7 +313,7 @@ cdef class MemObjectCollection:
             address = at
 
         slot = self._lookup(address)
-        if slot.address == NULL or slot.address == _dummy:
+        if slot[0] == NULL or slot[0] == _dummy:
             raise KeyError('address %s not present' % (at,))
         if at is address:
             return _MemObjectProxy(address, self)
