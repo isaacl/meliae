@@ -170,6 +170,27 @@ class TestMemObjectCollection(tests.TestCase):
         self.assertEqual('foo', mop.type_str)
         self.assertEqual(100, mop.size)
         self.assertRaises(KeyError, get, 1024)
+        self.assertTrue(mop is moc[mop])
+
+    def test__delitem__(self):
+        moc = _loader.MemObjectCollection()
+        def get(offset):
+            return moc[offset]
+        def delete(offset):
+            del moc[offset]
+        self.assertRaises(KeyError, delete, 0)
+        self.assertRaises(KeyError, delete, 1024)
+        moc.add(0, 'foo', 100)
+        self.assertTrue(0 in moc)
+        self.assertFalse(1024 in moc)
+        self.assertRaises(KeyError, delete, 1024)
+        moc.add(1024, 'bar', 200)
+        del moc[0]
+        self.assertFalse(0 in moc)
+        self.assertRaises(KeyError, get, 0)
+        mop = moc[1024]
+        del moc[mop]
+        self.assertRaises(KeyError, get, 1024)
 
     def test_add_until_resize(self):
         moc = _loader.MemObjectCollection()

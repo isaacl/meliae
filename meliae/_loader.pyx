@@ -275,23 +275,21 @@ cdef class MemObjectCollection:
             i = i + 1 + n_lookup
         raise AssertionError('we failed to find an open slot')
 
-    cdef _clear_slot(self, int offset):
-        cdef _MemObject *cur
-
-        cur = self._table + offset
-        if cur.address == NULL: # Already cleared
+    cdef _clear_slot(self, _MemObject *slot):
+        if slot.address == NULL: # Already cleared
             return
-        Py_XDECREF(cur.address)
-        Py_XDECREF(cur.type_str)
-        cur.type_str = NULL
-        _free_ref_list(cur.ref_list)
-        cur.ref_list = NULL
-        Py_XDECREF(cur.value)
-        cur.value = NULL
-        Py_XDECREF(cur.name)
-        cur.name = NULL
-        _free_ref_list(cur.referrer_list)
-        cur.referrer_list = NULL
+        Py_XDECREF(slot.address)
+        slot.address = NULL
+        Py_XDECREF(slot.type_str)
+        slot.type_str = NULL
+        _free_ref_list(slot.ref_list)
+        slot.ref_list = NULL
+        Py_XDECREF(slot.value)
+        slot.value = NULL
+        Py_XDECREF(slot.name)
+        slot.name = NULL
+        _free_ref_list(slot.referrer_list)
+        slot.referrer_list = NULL
 
     def _test_lookup(self, address):
         cdef _MemObject *slot
@@ -307,16 +305,35 @@ cdef class MemObjectCollection:
             return False
         return True
 
-    def __getitem__(self, address):
+    def __getitem__(self, at):
         cdef _MemObject *slot
+
+        if isinstance(at, _MemObjectProxy):
+            address = at.address
+        else:
+            address = at
 
         slot = self._lookup(address)
         if slot.address == NULL or slot.address == _dummy:
-            raise KeyError('address %s not present' % (address,))
-        return _MemObjectProxy(address, self)
+            raise KeyError('address %s not present' % (at,))
+        if at is address:
+            return _MemObjectProxy(address, self)
+        return at
 
-    # def __delitem__(self, address):
-    #     pass
+    def __delitem__(self, at):
+        cdef _MemObject *slot
+
+        if isinstance(at, _MemObjectProxy):
+            address = at.address
+        else:
+            address = at
+
+        slot = self._lookup(address)
+        if slot.address == NULL or slot.address == _dummy:
+            raise KeyError('address %s not present' % (at,))
+        self._clear_slot(slot)
+        slot.address = _dummy
+        # TODO: Shrink
 
     #def __setitem__(self, address, value):
     #    """moc[address] = value"""
@@ -432,7 +449,7 @@ cdef class MemObjectCollection:
         cdef long i
 
         for i from 0 <= i < self._table_mask:
-            self._clear_slot(i)
+            self._clear_slot(self._table + i)
         PyMem_Free(self._table)
         self._table = NULL
 
