@@ -37,8 +37,6 @@ cdef extern from "Python.h":
     # void fprintf(void *, char *, ...)
     # void *stderr
 
-import weakref
-
 
 ctypedef struct RefList:
     long size
@@ -147,6 +145,7 @@ cdef struct _MemObject:
     PyObject *name
     RefList *referrer_list
     unsigned long total_size
+    PyObject *proxy
 
 
 cdef int _free_mem_object(_MemObject *cur) except -1:
@@ -168,6 +167,8 @@ cdef int _free_mem_object(_MemObject *cur) except -1:
     cur.name = NULL
     _free_ref_list(cur.referrer_list)
     cur.referrer_list = NULL
+    Py_XDECREF(cur.proxy)
+    cur.proxy = NULL
     PyMem_Free(cur)
     return 1
 
@@ -194,7 +195,6 @@ cdef class _MemObjectProxy:
     cdef _MemObject *_obj
     # If not NULL, this will be freed when this object is deallocated
     cdef _MemObject *_managed_obj
-    cdef object __weakref__
 
     def __init__(self, collection):
         self.collection = collection
@@ -324,13 +324,11 @@ cdef class MemObjectCollection:
     cdef readonly int _active      # How many slots have real data
     cdef readonly int _filled      # How many slots have real or dummy
     cdef _MemObject** _table       # _MemObjects are stored inline
-    cdef public object _proxies    # _MemObjectProxy instances
 
     def __init__(self):
         self._table_mask = 1024 - 1
         self._table = <_MemObject**>PyMem_Malloc(sizeof(_MemObject*)*1024)
         memset(self._table, 0, sizeof(_MemObject*)*1024)
-        self._proxies = weakref.WeakValueDictionary()
 
     def __len__(self):
         return self._active
@@ -394,12 +392,13 @@ cdef class MemObjectCollection:
     cdef _MemObjectProxy _proxy_for(self, address, _MemObject *val):
         cdef _MemObjectProxy proxy
 
-        if address in self._proxies:
-            proxy = self._proxies[address]
-        else:
+        if val.proxy == NULL:
             proxy = _MemObjectProxy(self)
             proxy._obj = val
-            self._proxies[address] = proxy
+            val.proxy = <PyObject *>proxy
+            Py_INCREF(val.proxy)
+        else:
+            proxy = <object>val.proxy
         return proxy
 
     def __getitem__(self, at):
@@ -418,6 +417,8 @@ cdef class MemObjectCollection:
             raise KeyError('address %s not present' % (at,))
         if proxy is None:
             proxy = self._proxy_for(address, slot[0])
+        else:
+            assert proxy._obj == slot[0]
         return proxy
 
     def get(self, at, default=None):
@@ -438,11 +439,16 @@ cdef class MemObjectCollection:
         slot = self._lookup(address)
         if slot[0] == NULL or slot[0] == _dummy:
             raise KeyError('address %s not present' % (at,))
-        proxy = self._proxies.get(address, None)
-        if proxy is not None:
-            # Have the proxy take over the memory lifetime
+        if slot[0].proxy != NULL:
+            # Have the proxy take over the memory lifetime. At the same time,
+            # we break the reference cycle, so that the proxy will get cleaned
+            # up properly
+            proxy = <object>slot[0].proxy
             proxy._managed_obj = proxy._obj
+            Py_DECREF(slot[0].proxy)
+            slot[0].proxy = NULL
         else:
+            # Without a proxy, we just nuke the object
             self._clear_slot(slot)
         slot[0] = _dummy
         self._active -= 1
@@ -571,9 +577,7 @@ cdef class MemObjectCollection:
         if self._filled * 3 > (self._table_mask + 1) * 2:
             # We need to grow
             self._resize(self._active * 2)
-        proxy = _MemObjectProxy(self)
-        proxy._obj = new_entry
-        self._proxies[address] = proxy
+        proxy = self._proxy_for(address, new_entry)
         return proxy
 
     def __dealloc__(self):
@@ -605,10 +609,10 @@ cdef class MemObjectCollection:
                 values.append(address)
         return values
 
-    def items(self):
-        return self.iteritems()
-
     def iteritems(self):
+        return self.items()
+
+    def items(self):
         """Iterate over (key, value) tuples."""
         cdef long i
         cdef _MemObject *cur
@@ -627,6 +631,9 @@ cdef class MemObjectCollection:
 
     def itervalues(self):
         """Return an iterable of values stored in this map."""
+        return self.values()
+
+    def values(self):
         # This returns a list, but that is 'close enough' for what we need
         cdef long i
         cdef _MemObject *cur
