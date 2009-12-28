@@ -133,6 +133,18 @@ class TestMemObjectCollection(tests.TestCase):
         self.assertEqual(933, moc._test_lookup(933L+1024L))
         self.assertEqual(933, moc._test_lookup(933L+2**32-1))
 
+    def test__len__(self):
+        moc = _loader.MemObjectCollection()
+        self.assertEqual(0, len(moc))
+        moc.add(0, 'foo', 100)
+        self.assertEqual(1, len(moc))
+        moc.add(1024, 'foo', 100)
+        self.assertEqual(2, len(moc))
+        del moc[0]
+        self.assertEqual(1, len(moc))
+        del moc[1024]
+        self.assertEqual(0, len(moc))
+
     def test__lookup_collide(self):
         moc = _loader.MemObjectCollection()
         self.assertEqual(1023, moc._table_mask)
@@ -172,6 +184,12 @@ class TestMemObjectCollection(tests.TestCase):
         self.assertRaises(KeyError, get, 1024)
         self.assertTrue(mop is moc[mop])
 
+    def test_get(self):
+        moc = _loader.MemObjectCollection()
+        self.assertEqual(None, moc.get(0, None))
+        moc.add(0, 'foo', 100)
+        self.assertEqual(100, moc.get(0, None).size)
+
     def test__delitem__(self):
         moc = _loader.MemObjectCollection()
         def get(offset):
@@ -202,6 +220,26 @@ class TestMemObjectCollection(tests.TestCase):
         mop = moc[1024]
         self.assertEqual(1024, mop.address)
         self.assertEqual(1124, mop.size)
+
+    def test_itervalues(self):
+        moc = _loader.MemObjectCollection()
+        moc.add(0, 'bar', 100)
+        moc.add(1024, 'baz', 102)
+        moc.add(512, 'bing', 103)
+        self.assertEqual([0, 1024, 512], [x.address for x in moc.itervalues()])
+        del moc[0]
+        self.assertEqual([1024, 512], [x.address for x in moc.itervalues()])
+
+    def test_iteritems(self):
+        moc = _loader.MemObjectCollection()
+        moc.add(0, 'bar', 100)
+        moc.add(1024, 'baz', 102)
+        moc.add(512, 'bing', 103)
+        self.assertEqual([(0, 0), (1024, 1024), (512, 512)],
+                         [(k, v.address) for k,v in moc.iteritems()])
+        del moc[0]
+        self.assertEqual([(1024, 1024), (512, 512)],
+                         [(k, v.address) for k,v in moc.iteritems()])
 
 
 class Test_MemObjectProxy(tests.TestCase):
@@ -280,3 +318,12 @@ class Test_MemObjectProxy(tests.TestCase):
         self.assertEqual('foo', mop0.type_str)
         self.assertEqual(255, mop255.address)
         self.assertEqual('baz', mop255.type_str)
+
+    def test_total_size(self):
+        mop = self.moc[0]
+        self.assertEqual(0, mop.total_size)
+        mop.total_size = 10245678
+        self.assertEqual(10245678, mop.total_size)
+        mop.total_size = (2**31+1)
+        self.assertEqual(2**31+1, mop.total_size)
+

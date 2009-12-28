@@ -138,8 +138,8 @@ cdef struct _MemObject:
     # Consider making this unsigned long
     long size
     RefList *ref_list
-    # TODO: Scheduled for removal
-    int length
+    # Removed for now, since it hasn't proven useful
+    # int length
     PyObject *value
     PyObject *name
     RefList *referrer_list
@@ -216,6 +216,16 @@ cdef class _MemObjectProxy:
             Py_DECREF(self._obj.value)
             self._obj.value = new_val
 
+    property total_size:
+        """Mean to hold the size of this plus size of all referenced objects."""
+        def __get__(self):
+            self._ensure_obj()
+            return self._obj.total_size
+
+        def __set__(self, value):
+            self._ensure_obj()
+            self._obj.total_size = value
+
     def __len__(self):
         self._ensure_obj()
         if self._obj.ref_list == NULL:
@@ -279,6 +289,9 @@ cdef class MemObjectCollection:
         self._table = <_MemObject**>PyMem_Malloc(sizeof(_MemObject*)*1024)
         memset(self._table, 0, sizeof(_MemObject*)*1024)
         self._proxies = weakref.WeakValueDictionary()
+
+    def __len__(self):
+        return self._active
 
     cdef _MemObject** _lookup(self, address) except NULL:
         cdef long the_hash
@@ -355,6 +368,17 @@ cdef class MemObjectCollection:
             return False
         return True
 
+    cdef _MemObjectProxy _proxy_for(self, address, _MemObject *val):
+        cdef _MemObjectProxy proxy
+
+        if address in self._proxies:
+            proxy = self._proxies[address]
+        else:
+            proxy = _MemObjectProxy(self)
+            proxy._obj = val
+            self._proxies[address] = proxy
+        return proxy
+
     def __getitem__(self, at):
         cdef _MemObject **slot
         cdef _MemObjectProxy proxy
@@ -370,13 +394,14 @@ cdef class MemObjectCollection:
         if slot[0] == NULL or slot[0] == _dummy:
             raise KeyError('address %s not present' % (at,))
         if proxy is None:
-            if address in self._proxies:
-                proxy = self._proxies[address]
-            else:
-                proxy = _MemObjectProxy(self)
-                proxy._obj = slot[0]
-                self._proxies[address] = proxy
+            proxy = self._proxy_for(address, slot[0])
         return proxy
+
+    def get(self, at, default=None):
+        try:
+            return self[at]
+        except KeyError:
+            return default
 
     def __delitem__(self, at):
         cdef _MemObject **slot
@@ -395,6 +420,7 @@ cdef class MemObjectCollection:
             proxy._obj = NULL
         self._clear_slot(slot)
         slot[0] = _dummy
+        self._active -= 1
         # TODO: Shrink
 
     #def __setitem__(self, address, value):
@@ -506,10 +532,10 @@ cdef class MemObjectCollection:
         new_entry.size = size
         new_entry.ref_list = _list_to_ref_list(ref_list)
         # TODO: Scheduled for removal
-        if length is None:
-            new_entry.length = -1
-        else:
-            new_entry.length = length
+        # if length is None:
+        #     new_entry.length = -1
+        # else:
+        #     new_entry.length = length
         new_entry.value = <PyObject *>value
         Py_INCREF(new_entry.value)
         new_entry.name = <PyObject *>name
@@ -532,6 +558,41 @@ cdef class MemObjectCollection:
             self._clear_slot(self._table + i)
         PyMem_Free(self._table)
         self._table = NULL
+
+    def iteritems(self):
+        """Iterate over (key, value) tuples."""
+        cdef long i
+        cdef _MemObject *cur
+        cdef _MemObjectProxy proxy
+
+        values = []
+        for i from 0 <= i < self._table_mask:
+            cur = self._table[i]
+            if cur == NULL or cur == _dummy:
+                continue
+            else:
+                address = <object>cur.address
+                proxy = self._proxy_for(address, cur)
+                values.append((address, proxy))
+        return values
+
+    def itervalues(self):
+        """Return an iterable of values stored in this map."""
+        # This returns a list, but that is 'close enough' for what we need
+        cdef long i
+        cdef _MemObject *cur
+        cdef _MemObjectProxy proxy
+
+        values = []
+        for i from 0 <= i < self._table_mask:
+            cur = self._table[i]
+            if cur == NULL or cur == _dummy:
+                continue
+            else:
+                proxy = self._proxy_for(<object>cur.address, cur)
+                values.append(proxy)
+        return values
+
 
 
 cdef class MemObject:

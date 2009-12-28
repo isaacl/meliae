@@ -548,15 +548,23 @@ def iter_objs(source, using_json=False, show_prog=False, input_size=0,
             % (line_num, len(objs), mb_read, input_mb, tdelta))
 
 
-def _load(source, using_json, show_prog, input_size):
-    #objs = _loader.MemObjectCollection()
-    objs = {}
+def _load_moc(source, using_json, show_prog, input_size):
+    objs = _loader.MemObjectCollection()
     for memobj in iter_objs(source, using_json, show_prog, input_size, objs,
-                            ):#factory=objs.add):
+                            factory=objs.add):
         # objs.add automatically adds the object as it is created
+        pass
+    return ObjManager(objs, show_progress=show_prog)
+
+
+def _load(source, using_json, show_prog, input_size):
+    objs = {}
+    for memobj in iter_objs(source, using_json, show_prog, input_size, objs):
         objs[memobj.address] = memobj
     # _fill_total_size(objs)
     return ObjManager(objs, show_progress=show_prog)
+
+#_load = _load_moc
 
 
 def remove_expensive_references(source, total_objs=0, show_progress=False):
