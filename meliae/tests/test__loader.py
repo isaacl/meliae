@@ -223,3 +223,11 @@ class Test_MemObjectProxy(tests.TestCase):
         self.assertEqual(1024, mop.size)
         self.assertEqual(1024, self.moc[0].size)
         self.assertEqual(0, len(mop))
+
+    def test_deleted_proxy(self):
+        mop = self.moc[0]
+        del self.moc[0]
+        self.assertFalse(mop.is_valid())
+        self.assertRaises(RuntimeError, lambda: mop.type_str)
+        self.assertRaises(RuntimeError, lambda: mop.size)
+        self.assertRaises(RuntimeError, len, mop)

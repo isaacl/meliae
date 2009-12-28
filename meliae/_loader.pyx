@@ -37,6 +37,8 @@ cdef extern from "Python.h":
     # void fprintf(void *, char *, ...)
     # void *stderr
 
+import weakref
+
 
 ctypedef struct RefList:
     long size
@@ -166,40 +168,37 @@ cdef class _MemObjectProxy:
         self.collection = collection
         self._obj = NULL
 
-    cdef _MemObject *_get_obj(self) except NULL:
+    cdef _MemObject *_ensure_obj(self) except NULL:
         if self._obj is NULL:
             raise RuntimeError('_MemObjectProxy was deleted underneath it.')
         return self._obj
 
+    def is_valid(self):
+        if self._obj is NULL:
+            return False
+        return True
+
     property type_str:
         """The type of this object."""
         def __get__(self):
-            cdef _MemObject *slot
-
-            slot = self._get_obj()
-            return <object>(slot.type_str)
+            self._ensure_obj()
+            return <object>(self._obj.type_str)
 
     property size:
         """The number of bytes allocated for this object."""
         def __get__(self):
-            cdef _MemObject *slot
-
-            slot = self._get_obj()
-            return slot.size
+            self._ensure_obj()
+            return self._obj.size
 
         def __set__(self, value):
-            cdef _MemObject *slot
-
-            slot = self._get_obj()
-            slot.size = value
+            self._ensure_obj()
+            self._obj.size = value
 
     def __len__(self):
-        cdef _MemObject *slot
-
-        slot = self._get_obj()
-        if slot.ref_list == NULL:
+        self._ensure_obj()
+        if self._obj.ref_list == NULL:
             return 0
-        return slot.ref_list.size
+        return self._obj.ref_list.size
 
     # def __getitem__(self, offset):
     #     cdef _MemObject *slot
@@ -223,12 +222,14 @@ cdef class MemObjectCollection:
     cdef readonly int _table_mask  # N slots = table_mask + 1
     cdef readonly int _active      # How many slots have real data
     cdef readonly int _filled      # How many slots have real or dummy
-    cdef _MemObject** _table # _MemObjects are stored inline
+    cdef _MemObject** _table       # _MemObjects are stored inline
+    cdef public object _proxies    # _MemObjectProxy instances
 
     def __init__(self):
         self._table_mask = 1024 - 1
         self._table = <_MemObject**>PyMem_Malloc(sizeof(_MemObject*)*1024)
         memset(self._table, 0, sizeof(_MemObject*)*1024)
+        self._proxies = weakref.WeakValueDictionary()
 
     cdef _MemObject** _lookup(self, address) except NULL:
         cdef long the_hash
@@ -320,8 +321,12 @@ cdef class MemObjectCollection:
         if slot[0] == NULL or slot[0] == _dummy:
             raise KeyError('address %s not present' % (at,))
         if proxy is None:
-            proxy = _MemObjectProxy(address, self)
-            proxy._obj = slot[0]
+            if address in self._proxies:
+                proxy = self._proxies[address]
+            else:
+                proxy = _MemObjectProxy(address, self)
+                proxy._obj = slot[0]
+                self._proxies[address] = proxy
         return proxy
 
     def __delitem__(self, at):
@@ -336,6 +341,9 @@ cdef class MemObjectCollection:
         slot = self._lookup(address)
         if slot[0] == NULL or slot[0] == _dummy:
             raise KeyError('address %s not present' % (at,))
+        proxy = self._proxies.get(address, None)
+        if proxy is not None:
+            proxy._obj = NULL
         self._clear_slot(slot)
         slot[0] = _dummy
         # TODO: Shrink
