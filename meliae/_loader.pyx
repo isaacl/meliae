@@ -256,18 +256,13 @@ cdef class _MemObjectProxy:
         if off >= self._obj.ref_list.size:
             raise IndexError('%s has only %d (not %d) references'
                              % (self, self._obj.ref_list.size, offset))
-        return self.collection[<object>self._obj.ref_list.refs[off]]
-
-    # def __getitem__(self, offset):
-    #     cdef _MemObject *slot
-    #     cdef PyObject *item_addr
-    #     cdef long off
-
-    #     slot = self._get_obj()
-    #     if slot.ref_list == NULL:
-    #     off = offset
-    #     item_addr = slot.ref_list.refs[off]
-    #     return self.collection[<object>item_addr]
+        address = <object>self._obj.ref_list.refs[off]
+        try:
+            return self.collection[address]
+        except KeyError:
+            # TODO: What to do if the object isn't present? I think returning a
+            #       'no-such-object' proxy would be nicer than returning nothing
+            raise
 
 
 cdef class MemObjectCollection:
