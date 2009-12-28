@@ -591,6 +591,9 @@ cdef class MemObjectCollection:
                 values.append(address)
         return iter(values)
 
+    def items(self):
+        return self.iteritems()
+
     def iteritems(self):
         """Iterate over (key, value) tuples."""
         cdef long i

@@ -230,6 +230,19 @@ class TestMemObjectCollection(tests.TestCase):
         del moc[0]
         self.assertEqual([1024, 512], [x.address for x in moc.itervalues()])
 
+    def test_items(self):
+        moc = _loader.MemObjectCollection()
+        moc.add(0, 'bar', 100)
+        moc.add(1024, 'baz', 102)
+        moc.add(512, 'bing', 103)
+        items = moc.items()
+        self.assertTrue(isinstance(items, list))
+        self.assertEqual([(0, 0), (1024, 1024), (512, 512)],
+                         [(k, v.address) for k,v in items])
+        del moc[0]
+        self.assertEqual([(1024, 1024), (512, 512)],
+                         [(k, v.address) for k,v in moc.items()])
+
     def test_iteritems(self):
         moc = _loader.MemObjectCollection()
         moc.add(0, 'bar', 100)
