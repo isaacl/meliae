@@ -53,6 +53,8 @@ cdef object _set_default(object d, object val):
     """
     cdef PyObject *tmp
 
+    # TODO: Note that using _lookup directly would remove the need to ever do a
+    #       double-lookup to set the value
     tmp = PyDict_GetItem(d, val)
     if tmp == NULL:
         PyDict_SetItem(d, val, val)
@@ -133,8 +135,10 @@ cdef struct _MemObject:
     # """The raw C structure, used to minimize memory allocation size."""
     PyObject *address
     PyObject *type_str
+    # Consider making this unsigned long
     long size
     RefList *ref_list
+    # TODO: Scheduled for removal
     int length
     PyObject *value
     PyObject *name
@@ -159,12 +163,10 @@ cdef class _MemObjectProxy:
     """
 
     cdef MemObjectCollection collection
-    cdef public object address
     cdef _MemObject *_obj
     cdef object __weakref__
 
-    def __init__(self, address, collection):
-        self.address = address
+    def __init__(self, collection):
         self.collection = collection
         self._obj = NULL
 
@@ -177,6 +179,11 @@ cdef class _MemObjectProxy:
         if self._obj is NULL:
             return False
         return True
+
+    property address:
+        def __get__(self):
+            self._ensure_obj()
+            return <object>(self._obj.address)
 
     property type_str:
         """The type of this object."""
@@ -194,11 +201,39 @@ cdef class _MemObjectProxy:
             self._ensure_obj()
             self._obj.size = value
 
+    property value:
+        """Value for this object (for strings and ints)"""
+        def __get__(self):
+            self._ensure_obj()
+            return <object>self._obj.value
+
+        def __set__(self, value):
+            cdef PyObject *new_val
+            self._ensure_obj()
+            new_val = <PyObject *>value
+            # INCREF first, just in case value is self._obj.value
+            Py_INCREF(new_val)
+            Py_DECREF(self._obj.value)
+            self._obj.value = new_val
+
     def __len__(self):
         self._ensure_obj()
         if self._obj.ref_list == NULL:
             return 0
         return self._obj.ref_list.size
+
+    def _intern_from_cache(self, cache):
+        self._ensure_obj()
+        address = _set_default(cache, <object>self._obj.address)
+        if (<PyObject *>address) != self._obj.address:
+            Py_DECREF(self._obj.address)
+            self._obj.address = <PyObject *>address
+            Py_INCREF(self._obj.address)
+        type_str = _set_default(cache, <object>self.type_str)
+        if (<PyObject *>type_str) != self._obj.type_str:
+            Py_DECREF(self._obj.type_str)
+            self._obj.type_str = <PyObject *>type_str
+            Py_INCREF(self._obj.type_str)
 
     # def __getitem__(self, offset):
     #     cdef _MemObject *slot
@@ -324,7 +359,7 @@ cdef class MemObjectCollection:
             if address in self._proxies:
                 proxy = self._proxies[address]
             else:
-                proxy = _MemObjectProxy(address, self)
+                proxy = _MemObjectProxy(self)
                 proxy._obj = slot[0]
                 self._proxies[address] = proxy
         return proxy
@@ -427,6 +462,7 @@ cdef class MemObjectCollection:
             value=None, name=None, referrer_list=(), total_size=0):
         """Add a new MemObject to this collection."""
         cdef _MemObject **slot, *new_entry
+        cdef _MemObjectProxy proxy
         cdef PyObject *addr
 
         slot = self._lookup(address)
@@ -455,7 +491,11 @@ cdef class MemObjectCollection:
         Py_INCREF(new_entry.type_str)
         new_entry.size = size
         new_entry.ref_list = _list_to_ref_list(ref_list)
-        new_entry.length = length
+        # TODO: Scheduled for removal
+        if length is None:
+            new_entry.length = -1
+        else:
+            new_entry.length = length
         new_entry.value = <PyObject *>value
         Py_INCREF(new_entry.value)
         new_entry.name = <PyObject *>name
@@ -466,6 +506,10 @@ cdef class MemObjectCollection:
         if self._filled * 3 > (self._table_mask + 1) * 2:
             # We need to grow
             self._resize(self._active * 2)
+        proxy = _MemObjectProxy(self)
+        proxy._obj = new_entry
+        self._proxies[address] = proxy
+        return proxy
 
     def __dealloc__(self):
         cdef long i
@@ -510,6 +554,7 @@ cdef class MemObject:
     #       not just point to the final object anyway...
     cdef RefList *_ref_list # An array of addresses that this object
                             # referenced. May be NULL if len() == 0
+    # TODO: Scheduled for removal
     cdef readonly int length # Object length (ob_size), aka len(object)
     cdef public object value    # May be None, a PyString or a PyInt
     cdef readonly object name     # Name of this object (only valid for

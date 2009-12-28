@@ -488,7 +488,8 @@ def load(source, using_json=None, show_prog=True):
             cleanup()
 
 
-def iter_objs(source, using_json=False, show_prog=False, input_size=0, objs=None):
+def iter_objs(source, using_json=False, show_prog=False, input_size=0,
+              objs=None, factory=None):
     """Iterate MemObjects from json.
 
     :param source: A line iterator.
@@ -497,6 +498,8 @@ def iter_objs(source, using_json=False, show_prog=False, input_size=0, objs=None
     :param input_size: The size of the input if known (in bytes) or 0.
     :param objs: Either None or a dict containing objects by address. If not
         None, then duplicate objects will not be parsed or output.
+    :param factory: Use this to create new instances, if None, use
+        _loader.MemObject
     :return: A generator of MemObjects.
     """
     # TODO: cStringIO?
@@ -513,6 +516,8 @@ def iter_objs(source, using_json=False, show_prog=False, input_size=0, objs=None
         decoder = _from_json
     else:
         decoder = _from_line
+    if factory is None:
+        factory = _loader.MemObject
     for line_num, line in enumerate(source):
         bytes_read += len(line)
         if line in ("[\n", "]\n"):
@@ -527,7 +532,7 @@ def iter_objs(source, using_json=False, show_prog=False, input_size=0, objs=None
             address = int(m.group('address'))
             if address in objs:
                 continue
-        yield decoder(_loader.MemObject, line, temp_cache=temp_cache)
+        yield decoder(factory, line, temp_cache=temp_cache)
         if show_prog and (line_num - last > 5000):
             last = line_num
             mb_read = bytes_read / 1024. / 1024
@@ -544,8 +549,11 @@ def iter_objs(source, using_json=False, show_prog=False, input_size=0, objs=None
 
 
 def _load(source, using_json, show_prog, input_size):
+    #objs = _loader.MemObjectCollection()
     objs = {}
-    for memobj in iter_objs(source, using_json, show_prog, input_size, objs):
+    for memobj in iter_objs(source, using_json, show_prog, input_size, objs,
+                            ):#factory=objs.add):
+        # objs.add automatically adds the object as it is created
         objs[memobj.address] = memobj
     # _fill_total_size(objs)
     return ObjManager(objs, show_progress=show_prog)

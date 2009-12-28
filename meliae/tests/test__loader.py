@@ -231,3 +231,32 @@ class Test_MemObjectProxy(tests.TestCase):
         self.assertRaises(RuntimeError, lambda: mop.type_str)
         self.assertRaises(RuntimeError, lambda: mop.size)
         self.assertRaises(RuntimeError, len, mop)
+
+    def test_value(self):
+        mop = self.moc.add(1234, 'type', 256, value='testval')
+        self.assertEqual('testval', mop.value)
+        mop.value = None
+        self.assertEqual(None, mop.value)
+        mop.value = 'a str'
+        self.assertEqual('a str', mop.value)
+        mop.value = 'a str'
+        self.assertEqual('a str', mop.value)
+
+    def test__intern_from_cache(self):
+        cache = {}
+        addr = 1234567
+        mop = self.moc.add(addr, 'my ' + ' type', 256)
+        mop._intern_from_cache(cache)
+        self.assertTrue(addr in cache)
+        # TODO: ref_list and referrers
+        self.assertTrue(mop.address is addr)
+        self.assertTrue(cache[addr] is addr)
+        t = cache['my  type']
+        self.assertTrue(mop.type_str is t)
+        del self.moc[addr]
+        mop = self.moc.add(1234566+1, 'my ' + ' ty' + 'pe', 256)
+        self.assertFalse(mop.address is addr)
+        self.assertFalse(mop.type_str is t)
+        mop._intern_from_cache(cache)
+        self.assertTrue(mop.address is addr)
+        self.assertTrue(mop.type_str is t)
