@@ -235,6 +235,29 @@ cdef class _MemObjectProxy:
             self._obj.type_str = <PyObject *>type_str
             Py_INCREF(self._obj.type_str)
 
+    property ref_list:
+        """The list of objects referenced by this object."""
+        def __get__(self):
+            self._ensure_obj()
+            return _ref_list_to_list(self._obj.ref_list)
+
+        def __set__(self, value):
+            self._ensure_obj()
+            _free_ref_list(self._obj.ref_list)
+            self._obj.ref_list = _list_to_ref_list(value)
+
+    def __getitem__(self, offset):
+        cdef long off
+        self._ensure_obj()
+
+        if self._obj.ref_list == NULL:
+            raise IndexError('%s has no references' % (self,))
+        off = offset
+        if off >= self._obj.ref_list.size:
+            raise IndexError('%s has only %d (not %d) references'
+                             % (self, self._obj.ref_list.size, offset))
+        return self.collection[<object>self._obj.ref_list.refs[off]]
+
     # def __getitem__(self, offset):
     #     cdef _MemObject *slot
     #     cdef PyObject *item_addr
@@ -242,11 +265,7 @@ cdef class _MemObjectProxy:
 
     #     slot = self._get_obj()
     #     if slot.ref_list == NULL:
-    #         raise IndexError('%s has no references' % (self,))
     #     off = offset
-    #     if off >= slot.ref_list.size:
-    #         raise IndexError('%s has only %d (not %d) references'
-    #                          % (self, slot.ref_list.size, offset))
     #     item_addr = slot.ref_list.refs[off]
     #     return self.collection[<object>item_addr]
 

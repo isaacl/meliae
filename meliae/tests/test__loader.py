@@ -260,3 +260,23 @@ class Test_MemObjectProxy(tests.TestCase):
         mop._intern_from_cache(cache)
         self.assertTrue(mop.address is addr)
         self.assertTrue(mop.type_str is t)
+
+    def test_ref_list(self):
+        mop = self.moc.add(1234567, 'type', 256, ref_list=[1, 2, 3])
+        self.assertEqual(3, len(mop))
+        self.assertEqual([1, 2, 3], mop.ref_list)
+        mop.ref_list = [87654321, 23456]
+        self.assertEqual([87654321, 23456], mop.ref_list)
+        self.assertEqual(2, len(mop))
+
+    def test__getitem__(self):
+        mop = self.moc.add(1234567, 'type', 256, ref_list=[0, 255])
+        self.assertEqual(2, len(mop))
+        self.assertEqual(2, len(list(mop)))
+        mop0 = mop[0]
+        mop255 = mop[1]
+        self.assertEqual([mop0, mop255], list(mop))
+        self.assertEqual(0, mop0.address)
+        self.assertEqual('foo', mop0.type_str)
+        self.assertEqual(255, mop255.address)
+        self.assertEqual('baz', mop255.type_str)
