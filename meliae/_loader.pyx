@@ -34,8 +34,8 @@ cdef extern from "Python.h":
     int Py_EQ
     void memset(void *, int, size_t)
 
-    void fprintf(void *, char *, ...)
-    void *stderr
+    # void fprintf(void *, char *, ...)
+    # void *stderr
 
 
 ctypedef struct RefList:
@@ -260,30 +260,19 @@ cdef class MemObjectCollection:
                 # Found a blank spot
                 if free_slot != NULL:
                     # Did we find an earlier _dummy entry?
-                    fprintf(stderr, "returning free_slot: %d %d\n",
-                            <int>(free_slot - self._table),
-                            <int>(free_slot[0] == _dummy))
                     return free_slot
                 else:
-                    fprintf(stderr, "returning slot: %d\n",
-                                    <int>(slot - self._table))
                     return slot
             elif slot[0] == _dummy:
-                fprintf(stderr, "Found _dummy\n")
                 if free_slot == NULL:
-                    fprintf(stderr, "Setting free slot\n")
                     free_slot = slot
             elif slot[0].address == py_addr:
                 # Found an exact pointer to the key
-                fprintf(stderr, "returning matching address slot: %d\n",
-                                <int>(slot - self._table))
                 return slot
             elif slot[0].address == NULL:
                 raise RuntimeError('Found a non-empty slot with null address')
             elif PyObject_RichCompareBool(slot[0].address, py_addr, Py_EQ):
                 # Both py_key and cur belong in this slot, return it
-                fprintf(stderr, "returning equivalent slot: %d\n",
-                                <int>(slot - self._table))
                 return slot
             i = i + 1 + n_lookup
         raise RuntimeError('we failed to find an open slot after %d lookups'
@@ -309,7 +298,7 @@ cdef class MemObjectCollection:
         slot[0].name = NULL
         _free_ref_list(slot[0].referrer_list)
         slot[0].referrer_list = NULL
-        # PyMem_Free(slot[0])
+        PyMem_Free(slot[0])
         slot[0] = NULL
         return 1
 
@@ -322,9 +311,7 @@ cdef class MemObjectCollection:
     def __contains__(self, address):
         cdef _MemObject **slot
 
-        fprintf(stderr, "__contains__\n")
         slot = self._lookup(address)
-        fprintf(stderr, "_lookup returned %d\n", <int>(slot - self._table))
         if slot[0] == NULL or slot[0] == _dummy:
             return False
         return True
@@ -418,7 +405,6 @@ cdef class MemObjectCollection:
         remaining = self._active
         self._filled = 0
         self._active = 0
-        # fprintf(stderr, "malloced %d %d @%x\n", new_size, n_bytes, new_table)
 
         while remaining > 0:
             if old_slot[0] == NULL:
@@ -477,7 +463,6 @@ cdef class MemObjectCollection:
 
         if self._filled * 3 > (self._table_mask + 1) * 2:
             # We need to grow
-            # fprintf(stderr, "resizing to %d\n", self._active * 2)
             self._resize(self._active * 2)
 
     def __dealloc__(self):

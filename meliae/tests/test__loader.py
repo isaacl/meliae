@@ -174,7 +174,6 @@ class TestMemObjectCollection(tests.TestCase):
 
     def test__delitem__(self):
         moc = _loader.MemObjectCollection()
-        import pdb; pdb.set_trace()
         def get(offset):
             return moc[offset]
         def delete(offset):
