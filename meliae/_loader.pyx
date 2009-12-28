@@ -241,6 +241,10 @@ cdef class _MemObjectProxy:
             return 0
         return self._obj.ref_list.size
 
+    property num_refs:
+        def __get__(self):
+            return self.__len__()
+
     def _intern_from_cache(self, cache):
         self._ensure_obj()
         address = _set_default(cache, <object>self._obj.address)
@@ -278,6 +282,15 @@ cdef class _MemObjectProxy:
             self._ensure_obj()
             _free_ref_list(self._obj.referrer_list)
             self._obj.referrer_list = _list_to_ref_list(value)
+
+    property num_referrers:
+        """The length of the referrers list."""
+        def __get__(self):
+            self._ensure_obj()
+            if self._obj.referrer_list == NULL:
+                return 0
+            return self._obj.referrer_list.size
+
 
     def __getitem__(self, offset):
         cdef long off

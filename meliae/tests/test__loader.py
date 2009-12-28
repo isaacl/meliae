@@ -346,10 +346,12 @@ class Test_MemObjectProxy(tests.TestCase):
     def test_ref_list(self):
         mop = self.moc.add(1234567, 'type', 256, ref_list=[1, 2, 3])
         self.assertEqual(3, len(mop))
+        self.assertEqual(3, mop.num_refs)
         self.assertEqual([1, 2, 3], mop.ref_list)
         mop.ref_list = [87654321, 23456]
         self.assertEqual([87654321, 23456], mop.ref_list)
         self.assertEqual(2, len(mop))
+        self.assertEqual(2, mop.num_refs)
 
     def test__getitem__(self):
         mop = self.moc.add(1234567, 'type', 256, ref_list=[0, 255])
@@ -375,9 +377,13 @@ class Test_MemObjectProxy(tests.TestCase):
         mop = self.moc.add(1234567, 'type', 256, ref_list=[0, 255])
         mop0 = self.moc[0]
         self.assertEqual((), mop0.referrers)
+        self.assertEqual(0, mop0.num_referrers)
         mop255 = self.moc[255]
         self.assertEqual((), mop255.referrers)
+        self.assertEqual(0, mop255.num_referrers)
         mop0.referrers = [1234567]
+        self.assertEqual(1, mop0.num_referrers)
         self.assertEqual([1234567], mop0.referrers)
         mop255.referrers = [1234567]
+        self.assertEqual(1, mop255.num_referrers)
         self.assertEqual([1234567], mop255.referrers)
