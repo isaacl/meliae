@@ -559,6 +559,24 @@ cdef class MemObjectCollection:
         PyMem_Free(self._table)
         self._table = NULL
 
+    def __iter__(self):
+        return self.iterkeys()
+
+    def iterkeys(self):
+        cdef long i
+        cdef _MemObject *cur
+        cdef _MemObjectProxy proxy
+
+        values = []
+        for i from 0 <= i < self._table_mask:
+            cur = self._table[i]
+            if cur == NULL or cur == _dummy:
+                continue
+            else:
+                address = <object>cur.address
+                values.append(address)
+        return iter(values)
+
     def iteritems(self):
         """Iterate over (key, value) tuples."""
         cdef long i
