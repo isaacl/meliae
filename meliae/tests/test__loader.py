@@ -335,3 +335,13 @@ class Test_MemObjectProxy(tests.TestCase):
         mop.total_size = (2**31+1)
         self.assertEqual(2**31+1, mop.total_size)
 
+    def test_referrers(self):
+        mop = self.moc.add(1234567, 'type', 256, ref_list=[0, 255])
+        mop0 = self.moc[0]
+        self.assertEqual((), mop0.referrers)
+        mop255 = self.moc[255]
+        self.assertEqual((), mop255.referrers)
+        mop0.referrers = [1234567]
+        self.assertEqual([1234567], mop0.referrers)
+        mop255.referrers = [1234567]
+        self.assertEqual([1234567], mop255.referrers)

@@ -256,6 +256,20 @@ cdef class _MemObjectProxy:
             _free_ref_list(self._obj.ref_list)
             self._obj.ref_list = _list_to_ref_list(value)
 
+    property referrers:
+        """The list of objects that reference this object.
+
+        Original set to None, can be computed on demand.
+        """
+        def __get__(self):
+            self._ensure_obj()
+            return _ref_list_to_list(self._obj.referrer_list)
+
+        def __set__(self, value):
+            self._ensure_obj()
+            _free_ref_list(self._obj.referrer_list)
+            self._obj.referrer_list = _list_to_ref_list(value)
+
     def __getitem__(self, offset):
         cdef long off
         self._ensure_obj()
