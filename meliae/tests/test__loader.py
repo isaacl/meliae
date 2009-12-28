@@ -315,6 +315,15 @@ class Test_MemObjectProxy(tests.TestCase):
         mop.value = 'a str'
         self.assertEqual('a str', mop.value)
 
+    def test_name(self):
+        mop = self.moc.add(1234, 'type', 256, name='the name')
+        self.assertEqual('the name', mop.name)
+        # TODO: We may remove name as a separate attribute from value, but for
+        #       now, 'name' is not settable
+        def set(value):
+            mop.name = value
+        self.assertRaises(AttributeError, set, 'test')
+
     def test__intern_from_cache(self):
         cache = {}
         addr = 1234567

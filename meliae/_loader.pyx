@@ -141,6 +141,9 @@ cdef struct _MemObject:
     # Removed for now, since it hasn't proven useful
     # int length
     PyObject *value
+    # TODO: I don't think I've found an object that has both a value and a
+    #       name. As such, I should probably remove the redundancy, as it saves
+    #       a pointer
     PyObject *name
     RefList *referrer_list
     unsigned long total_size
@@ -200,6 +203,12 @@ cdef class _MemObjectProxy:
         def __set__(self, value):
             self._ensure_obj()
             self._obj.size = value
+
+    property name:
+        """Name associated with this object."""
+        def __get__(self):
+            self._ensure_obj()
+            return <object>self._obj.name
 
     property value:
         """Value for this object (for strings and ints)"""
