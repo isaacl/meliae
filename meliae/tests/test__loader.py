@@ -300,10 +300,9 @@ class Test_MemObjectProxy(tests.TestCase):
     def test_deleted_proxy(self):
         mop = self.moc[0]
         del self.moc[0]
-        self.assertFalse(mop.is_valid())
-        self.assertRaises(RuntimeError, lambda: mop.type_str)
-        self.assertRaises(RuntimeError, lambda: mop.size)
-        self.assertRaises(RuntimeError, len, mop)
+        self.assertEqual('foo', mop.type_str)
+        self.assertEqual(100, mop.size)
+        self.assertEqual(0, len(mop))
 
     def test_value(self):
         mop = self.moc.add(1234, 'type', 256, value='testval')

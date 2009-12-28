@@ -149,6 +149,29 @@ cdef struct _MemObject:
     unsigned long total_size
 
 
+cdef int _free_mem_object(_MemObject *cur) except -1:
+    if cur == NULL: # Already cleared
+        return 0
+    if cur == _dummy:
+        return 0
+    if cur.address == NULL:
+        raise RuntimeError('clering something that doesn\'t have address')
+    Py_XDECREF(cur.address)
+    cur.address = NULL
+    Py_XDECREF(cur.type_str)
+    cur.type_str = NULL
+    _free_ref_list(cur.ref_list)
+    cur.ref_list = NULL
+    Py_XDECREF(cur.value)
+    cur.value = NULL
+    Py_XDECREF(cur.name)
+    cur.name = NULL
+    _free_ref_list(cur.referrer_list)
+    cur.referrer_list = NULL
+    PyMem_Free(cur)
+    return 1
+
+
 cdef _MemObject *_dummy
 _dummy = <_MemObject*>(-1)
 
@@ -166,59 +189,52 @@ cdef class _MemObjectProxy:
     """
 
     cdef MemObjectCollection collection
+    # This must be set immediately after construction, before accessing any
+    # member vars
     cdef _MemObject *_obj
+    # If not NULL, this will be freed when this object is deallocated
+    cdef _MemObject *_managed_obj
     cdef object __weakref__
 
     def __init__(self, collection):
         self.collection = collection
         self._obj = NULL
+        self._managed_obj = NULL
 
-    cdef _MemObject *_ensure_obj(self) except NULL:
-        if self._obj is NULL:
-            raise RuntimeError('_MemObjectProxy was deleted underneath it.')
-        return self._obj
-
-    def is_valid(self):
-        if self._obj is NULL:
-            return False
-        return True
+    def __dealloc__(self):
+        if self._managed_obj != NULL:
+            _free_mem_object(self._managed_obj)
+            self._managed_obj = NULL
 
     property address:
         def __get__(self):
-            self._ensure_obj()
             return <object>(self._obj.address)
 
     property type_str:
         """The type of this object."""
         def __get__(self):
-            self._ensure_obj()
             return <object>(self._obj.type_str)
 
     property size:
         """The number of bytes allocated for this object."""
         def __get__(self):
-            self._ensure_obj()
             return self._obj.size
 
         def __set__(self, value):
-            self._ensure_obj()
             self._obj.size = value
 
     property name:
         """Name associated with this object."""
         def __get__(self):
-            self._ensure_obj()
             return <object>self._obj.name
 
     property value:
         """Value for this object (for strings and ints)"""
         def __get__(self):
-            self._ensure_obj()
             return <object>self._obj.value
 
         def __set__(self, value):
             cdef PyObject *new_val
-            self._ensure_obj()
             new_val = <PyObject *>value
             # INCREF first, just in case value is self._obj.value
             Py_INCREF(new_val)
@@ -228,15 +244,12 @@ cdef class _MemObjectProxy:
     property total_size:
         """Mean to hold the size of this plus size of all referenced objects."""
         def __get__(self):
-            self._ensure_obj()
             return self._obj.total_size
 
         def __set__(self, value):
-            self._ensure_obj()
             self._obj.total_size = value
 
     def __len__(self):
-        self._ensure_obj()
         if self._obj.ref_list == NULL:
             return 0
         return self._obj.ref_list.size
@@ -246,7 +259,6 @@ cdef class _MemObjectProxy:
             return self.__len__()
 
     def _intern_from_cache(self, cache):
-        self._ensure_obj()
         address = _set_default(cache, <object>self._obj.address)
         if (<PyObject *>address) != self._obj.address:
             Py_DECREF(self._obj.address)
@@ -261,11 +273,9 @@ cdef class _MemObjectProxy:
     property ref_list:
         """The list of objects referenced by this object."""
         def __get__(self):
-            self._ensure_obj()
             return _ref_list_to_list(self._obj.ref_list)
 
         def __set__(self, value):
-            self._ensure_obj()
             _free_ref_list(self._obj.ref_list)
             self._obj.ref_list = _list_to_ref_list(value)
 
@@ -275,18 +285,15 @@ cdef class _MemObjectProxy:
         Original set to None, can be computed on demand.
         """
         def __get__(self):
-            self._ensure_obj()
             return _ref_list_to_list(self._obj.referrer_list)
 
         def __set__(self, value):
-            self._ensure_obj()
             _free_ref_list(self._obj.referrer_list)
             self._obj.referrer_list = _list_to_ref_list(value)
 
     property num_referrers:
         """The length of the referrers list."""
         def __get__(self):
-            self._ensure_obj()
             if self._obj.referrer_list == NULL:
                 return 0
             return self._obj.referrer_list.size
@@ -294,7 +301,6 @@ cdef class _MemObjectProxy:
 
     def __getitem__(self, offset):
         cdef long off
-        self._ensure_obj()
 
         if self._obj.ref_list == NULL:
             raise IndexError('%s has no references' % (self,))
@@ -367,26 +373,7 @@ cdef class MemObjectCollection:
                            % (n_lookup))
 
     cdef int _clear_slot(self, _MemObject **slot) except -1:
-        if slot[0] == NULL: # Already cleared
-            return 0
-        if slot[0] == _dummy:
-            slot[0] = NULL
-            return 0
-        if slot[0].address == NULL:
-            raise RuntimeError('clering something that doesn\'t have address')
-        Py_XDECREF(slot[0].address)
-        slot[0].address = NULL
-        Py_XDECREF(slot[0].type_str)
-        slot[0].type_str = NULL
-        _free_ref_list(slot[0].ref_list)
-        slot[0].ref_list = NULL
-        Py_XDECREF(slot[0].value)
-        slot[0].value = NULL
-        Py_XDECREF(slot[0].name)
-        slot[0].name = NULL
-        _free_ref_list(slot[0].referrer_list)
-        slot[0].referrer_list = NULL
-        PyMem_Free(slot[0])
+        _free_mem_object(slot[0])
         slot[0] = NULL
         return 1
 
@@ -453,8 +440,10 @@ cdef class MemObjectCollection:
             raise KeyError('address %s not present' % (at,))
         proxy = self._proxies.get(address, None)
         if proxy is not None:
-            proxy._obj = NULL
-        self._clear_slot(slot)
+            # Have the proxy take over the memory lifetime
+            proxy._managed_obj = proxy._obj
+        else:
+            self._clear_slot(slot)
         slot[0] = _dummy
         self._active -= 1
         # TODO: Shrink
