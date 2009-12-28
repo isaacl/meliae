@@ -577,6 +577,9 @@ cdef class MemObjectCollection:
         return self.iterkeys()
 
     def iterkeys(self):
+        return iter(self.keys())
+
+    def keys(self):
         cdef long i
         cdef _MemObject *cur
         cdef _MemObjectProxy proxy
@@ -589,7 +592,7 @@ cdef class MemObjectCollection:
             else:
                 address = <object>cur.address
                 values.append(address)
-        return iter(values)
+        return values
 
     def items(self):
         return self.iteritems()
@@ -704,6 +707,11 @@ cdef class MemObject:
             if self._ref_list == NULL:
                 return 0
             return self._ref_list.size
+
+    def __len__(self):
+        if self._ref_list == NULL:
+            return 0
+        return self._ref_list.size
 
     property referrers:
         """The list of objects that reference this object.

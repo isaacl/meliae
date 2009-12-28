@@ -254,6 +254,17 @@ class TestMemObjectCollection(tests.TestCase):
         self.assertEqual([(1024, 1024), (512, 512)],
                          [(k, v.address) for k,v in moc.iteritems()])
 
+    def test_keys(self):
+        moc = _loader.MemObjectCollection()
+        moc.add(0, 'bar', 100)
+        moc.add(1024, 'baz', 102)
+        moc.add(512, 'bing', 103)
+        keys = moc.keys()
+        self.assertTrue(isinstance(keys, list))
+        self.assertEqual([0, 1024, 512], keys)
+        del moc[0]
+        self.assertEqual([1024, 512], moc.keys())
+
     def test__iter__(self):
         moc = _loader.MemObjectCollection()
         moc.add(0, 'bar', 100)
@@ -261,6 +272,9 @@ class TestMemObjectCollection(tests.TestCase):
         moc.add(512, 'bing', 103)
         self.assertEqual([0, 1024, 512], list(moc))
         self.assertEqual([0, 1024, 512], list(moc.iterkeys()))
+        del moc[0]
+        self.assertEqual([1024, 512], list(moc))
+        self.assertEqual([1024, 512], list(moc.iterkeys()))
 
 
 class Test_MemObjectProxy(tests.TestCase):

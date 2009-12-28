@@ -342,7 +342,7 @@ class ObjManager(object):
     def get_all(self, type_str):
         """Return all objects that match a given type."""
         all = [o for o in self.objs.itervalues() if o.type_str == type_str]
-        all.sort(key=lambda x:(x.size, x.num_refs, x.num_referrers),
+        all.sort(key=lambda x:(x.size, len(x), x.num_referrers),
                  reverse=True)
         return all
 
@@ -377,11 +377,11 @@ class ObjManager(object):
             if self.show_progress and item_idx & 0x5ff:
                 sys.stderr.write('checked %8d / %8d collapsed %8d    \r'
                                  % (item_idx, total, collapsed))
-            if obj.type_str == 'module' and obj.num_refs == 1:
+            if obj.type_str == 'module' and len(obj) == 1:
                 (dict_ref,) = obj.ref_list
                 extra_refs = []
             else:
-                if obj.num_refs != 2:
+                if len(obj) != 2:
                     continue
                 (dict_ref, type_ref) = obj.ref_list
                 type_obj = self.objs[type_ref]
