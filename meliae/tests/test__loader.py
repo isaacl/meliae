@@ -202,3 +202,24 @@ class TestMemObjectCollection(tests.TestCase):
         mop = moc[1024]
         self.assertEqual(1024, mop.address)
         self.assertEqual(1124, mop.size)
+
+
+class Test_MemObjectProxy(tests.TestCase):
+
+    def setUp(self):
+        super(Test_MemObjectProxy, self).setUp()
+        self.moc = _loader.MemObjectCollection()
+        self.moc.add(1024, 'bar', 200)
+        self.moc.add(0, 'foo', 100)
+        self.moc.add(255, 'baz', 300)
+        del self.moc[1024]
+
+    def test_basic_proxy(self):
+        mop = self.moc[0]
+        self.assertEqual(0, mop.address)
+        self.assertEqual('foo', mop.type_str)
+        self.assertEqual(100, mop.size)
+        mop.size = 1024
+        self.assertEqual(1024, mop.size)
+        self.assertEqual(1024, self.moc[0].size)
+        self.assertEqual(0, len(mop))

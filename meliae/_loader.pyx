@@ -156,31 +156,20 @@ cdef class _MemObjectProxy:
     these on-the-fly.
     """
 
-    # Note that it is possible for the table to be mutated while this object is
-    # live, which is why we don't hold a direct pointer to the _MemObject, and
-    # instead go through a table lookup for all attributes.  An alternative
-    # option would be to hold a copy-by-value, and only go back to the original
-    # object in __set__ functions.
-    # Alternatively, we could keep track of all proxy objects returned, and
-    # point them to the new locations when things move.
-    # We may want to keep track of them anyway, so that we don't create 20
-    # proxy objects for the same address. TBD
-
     cdef MemObjectCollection collection
     cdef public object address
+    cdef _MemObject *_obj
+    cdef object __weakref__
 
     def __init__(self, address, collection):
         self.address = address
         self.collection = collection
+        self._obj = NULL
 
     cdef _MemObject *_get_obj(self) except NULL:
-        cdef _MemObject **slot
-
-        slot = self.collection._lookup(self.address)
-        if slot[0] == NULL or slot[0] == _dummy:
-            raise RuntimeError('we failed to lookup the obj at address %d'
-                               % (self.address,))
-        return slot[0]
+        if self._obj is NULL:
+            raise RuntimeError('_MemObjectProxy was deleted underneath it.')
+        return self._obj
 
     property type_str:
         """The type of this object."""
@@ -318,21 +307,26 @@ cdef class MemObjectCollection:
 
     def __getitem__(self, at):
         cdef _MemObject **slot
+        cdef _MemObjectProxy proxy
 
         if isinstance(at, _MemObjectProxy):
             address = at.address
+            proxy = at
         else:
             address = at
+            proxy = None
 
         slot = self._lookup(address)
         if slot[0] == NULL or slot[0] == _dummy:
             raise KeyError('address %s not present' % (at,))
-        if at is address:
-            return _MemObjectProxy(address, self)
-        return at
+        if proxy is None:
+            proxy = _MemObjectProxy(address, self)
+            proxy._obj = slot[0]
+        return proxy
 
     def __delitem__(self, at):
         cdef _MemObject **slot
+        cdef _MemObjectProxy proxy
 
         if isinstance(at, _MemObjectProxy):
             address = at.address
