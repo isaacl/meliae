@@ -145,6 +145,9 @@ cdef struct _MemObject:
     PyObject *name
     RefList *referrer_list
     unsigned long total_size
+    # This is an uncounted ref to a _MemObjectProxy. _MemObjectProxy also has a
+    # refreence to this object, so when it disappears it can set the reference
+    # to NULL.
     PyObject *proxy
 
 
