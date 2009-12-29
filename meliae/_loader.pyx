@@ -162,7 +162,7 @@ cdef struct _MemObject:
     # TODO: I don't think I've found an object that has both a value and a
     #       name. As such, I should probably remove the redundancy, as it saves
     #       a pointer
-    PyObject *name
+    # PyObject *name
     RefList *referrer_list
     unsigned long total_size
     # This is an uncounted ref to a _MemObjectProxy. _MemObjectProxy also has a
@@ -186,8 +186,8 @@ cdef int _free_mem_object(_MemObject *cur) except -1:
     cur.ref_list = NULL
     Py_XDECREF(cur.value)
     cur.value = NULL
-    Py_XDECREF(cur.name)
-    cur.name = NULL
+    # Py_XDECREF(cur.name)
+    # cur.name = NULL
     _free_ref_list(cur.referrer_list)
     cur.referrer_list = NULL
     cur.proxy = NULL
@@ -253,10 +253,10 @@ cdef class _MemObjectProxy:
         def __set__(self, value):
             self._obj.size = value
 
-    property name:
-        """Name associated with this object."""
-        def __get__(self):
-            return <object>self._obj.name
+    # property name:
+    #     """Name associated with this object."""
+    #     def __get__(self):
+    #         return <object>self._obj.name
 
     property value:
         """Value for this object (for strings and ints)"""
@@ -594,10 +594,14 @@ cdef class MemObjectCollection:
         #     new_entry.length = -1
         # else:
         #     new_entry.length = length
-        new_entry.value = <PyObject *>value
+        if value is not None and name is not None:
+            raise RuntimeError("We currently only support one of value or name"
+                " per object.")
+        if value is not None:
+            new_entry.value = <PyObject *>value
+        else:
+            new_entry.value = <PyObject *>name
         Py_INCREF(new_entry.value)
-        new_entry.name = <PyObject *>name
-        Py_INCREF(new_entry.name)
         new_entry.referrer_list = _list_to_ref_list(referrer_list)
         new_entry.total_size = total_size
 
