@@ -17,6 +17,7 @@
 Currently requires simplejson to parse.
 """
 
+import gc
 import math
 import os
 import re
@@ -209,6 +210,7 @@ class ObjManager(object):
         get_refs = referrers.get
         total = len(self.objs)
         tlast = timer()-20
+        gc.disable()
         for idx, obj in enumerate(self.objs.itervalues()):
             if self.show_progress and idx & 0x3f == 0:
                 tnow = timer()
@@ -267,6 +269,7 @@ class ObjManager(object):
                     obj.referrers = (refs,)
                 else:
                     obj.referrers = refs
+        gc.enable()
         if self.show_progress:
             sys.stderr.write('set referrers %8d / %8d        \n'
                              % (idx, total))
@@ -382,15 +385,19 @@ class ObjManager(object):
         #       and reference a 'classobj' with the actual type name
         collapsed = 0
         total = len(self.objs)
+        tlast = timer()-20
         for item_idx, (address, obj) in enumerate(self.objs.items()):
             if obj.type_str in ('str', 'dict', 'tuple', 'list', 'type',
                                 'function', 'wrapper_descriptor',
                                 'code', 'classobj', 'int',
                                 'weakref'):
                 continue
-            if self.show_progress and item_idx & 0x5ff:
-                sys.stderr.write('checked %8d / %8d collapsed %8d    \r'
-                                 % (item_idx, total, collapsed))
+            if self.show_progress and item_idx & 0x3f:
+                tnow = timer()
+                if tnow - tlast > 0.1:
+                    tlast = tnow
+                    sys.stderr.write('checked %8d / %8d collapsed %8d    \r'
+                                     % (item_idx, total, collapsed))
             if obj.type_str == 'module' and len(obj) == 1:
                 (dict_ref,) = obj.ref_list
                 extra_refs = []
@@ -418,14 +425,14 @@ class ObjManager(object):
             # the dict from the collection
             del self.objs[dict_ref]
         if self.show_progress:
-            sys.stderr.write('checked %8d / %8d collapsed %8d    \r'
+            sys.stderr.write('checked %8d / %8d collapsed %8d    \n'
                              % (item_idx, total, collapsed))
         if collapsed:
             self.compute_referrers()
 
     def refs_as_dict(self, obj):
         """Expand the ref list considering it to be a 'dict' structure.
-        
+
         Often we have dicts that point to simple strings and ints, etc. This
         tries to expand that as much as possible.
 
@@ -514,8 +521,8 @@ def iter_objs(source, using_json=False, show_prog=False, input_size=0,
     :param objs: Either None or a dict containing objects by address. If not
         None, then duplicate objects will not be parsed or output.
     :param factory: Use this to create new instances, if None, use
-        _loader.MemObject
-    :return: A generator of MemObjects.
+        _loader._MemObjectProxy.from_args
+    :return: A generator of memory objects.
     """
     # TODO: cStringIO?
     tstart = timer()
@@ -532,7 +539,7 @@ def iter_objs(source, using_json=False, show_prog=False, input_size=0,
     else:
         decoder = _from_line
     if factory is None:
-        factory = _loader.MemObject
+        factory = _loader._MemObjectProxy_from_args
     for line_num, line in enumerate(source):
         bytes_read += len(line)
         if line in ("[\n", "]\n"):
@@ -619,7 +626,7 @@ def remove_expensive_references(source, total_objs=0, show_progress=False):
     # Second pass, any object which refers to something in noref_objs will
     # have that reference removed, and replaced with the null_memobj
     num_expensive = len(noref_objs)
-    null_memobj = _loader.MemObject(0, '<ex-reference>', 0, [])
+    null_memobj = _loader._MemObjectProxy_from_args(0, '<ex-reference>', 0, [])
     if not seen_zero:
         yield (True, null_memobj)
     if show_progress and total_objs == 0:

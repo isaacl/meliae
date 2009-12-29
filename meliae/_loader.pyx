@@ -180,6 +180,40 @@ cdef struct _MemObject:
     PyObject *proxy
 
 
+cdef _MemObject *_new_mem_object(address, type_str, size, ref_list,
+                             value, name, parent_list, total_size) except NULL:
+    cdef _MemObject *new_entry
+    cdef PyObject *addr
+
+    new_entry = <_MemObject *>PyMem_Malloc(sizeof(_MemObject))
+    if new_entry == NULL:
+        raise MemoryError('Failed to allocate %d bytes' % (sizeof(_MemObject),))
+    memset(new_entry, 0, sizeof(_MemObject))
+    addr = <PyObject *>address
+    Py_INCREF(addr)
+    new_entry.address = addr
+    new_entry.type_str = <PyObject *>type_str
+    Py_INCREF(new_entry.type_str)
+    new_entry.size = size
+    new_entry.ref_list = _list_to_ref_list(ref_list)
+    # TODO: Was found wanting and removed
+    # if length is None:
+    #     new_entry.length = -1
+    # else:
+    #     new_entry.length = length
+    if value is not None and name is not None:
+        raise RuntimeError("We currently only support one of value or name"
+                           " per object.")
+    if value is not None:
+        new_entry.value = <PyObject *>value
+    else:
+        new_entry.value = <PyObject *>name
+    Py_INCREF(new_entry.value)
+    new_entry.parent_list = _list_to_ref_list(parent_list)
+    new_entry.total_size = total_size
+    return new_entry
+
+
 cdef int _free_mem_object(_MemObject *cur) except -1:
     if cur == NULL: # Already cleared
         return 0
@@ -209,6 +243,27 @@ _dummy = <_MemObject*>(-1)
 
 
 cdef class MemObjectCollection
+cdef class _MemObjectProxy
+
+
+def _MemObjectProxy_from_args(address, type_str, size, ref_list=(), length=0,
+                              value=None, name=None, parent_list=(),
+                              total_size=0):
+    """Create a standalone _MemObjectProxy instance.
+
+    Note that things like '__getitem__' won't work, as they query the
+    collection for the actual data.
+    """
+    cdef _MemObject *new_entry
+    cdef _MemObjectProxy proxy
+
+    new_entry = _new_mem_object(address, type_str, size, ref_list,
+                                value, name, parent_list, total_size)
+    proxy = _MemObjectProxy(None)
+    proxy._obj = new_entry
+    proxy._managed_obj = new_entry
+    new_entry.proxy = <PyObject *>proxy
+    return proxy
 
 
 cdef class _MemObjectProxy:
@@ -419,6 +474,25 @@ cdef class _MemObjectProxy:
         return '%s(%d %dB%s%s%s%s)' % (
             self.type_str, self.address, self.size,
             refs, parent_str, val, total_size_str)
+
+    def to_json(self):
+        """Convert this back into json."""
+        refs = []
+        for ref in sorted(self.ref_list):
+            refs.append(str(ref))
+        # Note: We've lost the info about whether this was a value or a name
+        #       We've also lost the 'length' field.
+        if self.value is not None:
+            if self.type_str == 'int':
+                value = '"value": %s, ' % self.value
+            else:
+                # TODO: This isn't perfect, as it doesn't do proper json
+                #       escaping
+                value = '"value": "%s", ' % self.value
+        else:
+            value = ''
+        return '{"address": %d, "type": "%s", "size": %d, %s"refs": [%s]}' % (
+            self.address, self.type_str, self.size, value, ', '.join(refs))
 
 
 cdef class MemObjectCollection:
@@ -635,7 +709,6 @@ cdef class MemObjectCollection:
         """Add a new MemObject to this collection."""
         cdef _MemObject **slot, *new_entry
         cdef _MemObjectProxy proxy
-        cdef PyObject *addr
 
         slot = self._lookup(address)
         if slot[0] != NULL and slot[0] != _dummy:
@@ -644,41 +717,13 @@ cdef class MemObjectCollection:
             assert False, "We don't support overwrite yet."
         # TODO: These are fairy small and more subject to churn, maybe we
         #       should be using PyObj_Malloc instead...
-        new_entry = <_MemObject *>PyMem_Malloc(sizeof(_MemObject))
-        if new_entry == NULL:
-            # TODO: as we are running out of memory here, we might want to
-            #       pre-allocate this object. Since it is likely to take as
-            #       much mem to create this object as _MemObject
-            raise MemoryError('Failed to allocate %d bytes'
-                              % (sizeof(_MemObject),))
-        memset(new_entry, 0, sizeof(_MemObject))
-        addr = <PyObject *>address
+        new_entry = _new_mem_object(address, type_str, size, ref_list,
+                                    value, name, parent_list, total_size)
+
         if slot[0] == NULL:
             self._filled += 1
         self._active += 1
         slot[0] = new_entry
-        Py_INCREF(addr)
-        new_entry.address = addr
-        new_entry.type_str = <PyObject *>type_str
-        Py_INCREF(new_entry.type_str)
-        new_entry.size = size
-        new_entry.ref_list = _list_to_ref_list(ref_list)
-        # TODO: Scheduled for removal
-        # if length is None:
-        #     new_entry.length = -1
-        # else:
-        #     new_entry.length = length
-        if value is not None and name is not None:
-            raise RuntimeError("We currently only support one of value or name"
-                " per object.")
-        if value is not None:
-            new_entry.value = <PyObject *>value
-        else:
-            new_entry.value = <PyObject *>name
-        Py_INCREF(new_entry.value)
-        new_entry.parent_list = _list_to_ref_list(parent_list)
-        new_entry.total_size = total_size
-
         if self._filled * 3 > (self._table_mask + 1) * 2:
             # We need to grow
             self._resize(self._active * 2)
@@ -807,203 +852,3 @@ cdef class _MOCValueIterator:
                 ' %d, %d %d' % (<int>cur, self.table_pos,
                                 self.collection._table_mask))
         return self.collection._proxy_for(<object>cur.address, cur)
-
-
-cdef class MemObject:
-    """This defines the information we know about the objects.
-
-    We use a Pyrex class, since in python each object is 40 bytes, but you also
-    have to include the size of all the objects referenced. (a 4-byte integer,
-    becomes a 12-byte PyInt.)
-
-    :ivar address: The address in memory of the original object. This is used
-        as the 'handle' to this object.
-    :ivar type_str: The type of this object
-    :ivar size: The number of bytes consumed for just this object. So for a
-        dict, this would be the basic_size + the size of the allocated array to
-        store the reference pointers
-    :ivar ref_list: A list of items referenced from this object
-    :ivar num_refs: Count of references
-    :ivar value: A PyObject representing the Value for this object. (For
-        strings, it is the first 100 bytes, it may be None if we have no value,
-        or it may be an integer, etc.)
-    :ivar name: Some objects have associated names, like modules, classes, etc.
-    """
-
-    cdef readonly object address  # We track the address by pointing to a PyInt
-                                  # This is valid, because we put these objects
-                                  # into a dict anyway, so we need a PyInt
-                                  # And we can just share it
-    cdef readonly object type_str # pointer to a PyString, this is expected to
-                                  # be shared with many other instances, but
-                                  # longer than 4 bytes
-    cdef public long size # Number of bytes consumed by this instance
-    # TODO: Right now this points to the integer offset, which we then look up
-    #       in the OM dict. However, if we are going to go with PyObject *, why
-    #       not just point to the final object anyway...
-    cdef RefList *_ref_list # An array of addresses that this object
-                            # referenced. May be NULL if len() == 0
-    # TODO: Scheduled for removal
-    cdef readonly int length # Object length (ob_size), aka len(object)
-    cdef public object value    # May be None, a PyString or a PyInt
-    cdef readonly object name     # Name of this object (only valid for
-                                  # modules, etc)
-    cdef RefList *_referrer_list # An array of addresses that refer to this,
-
-    cdef public unsigned long total_size # Size of everything referenced from
-                                         # this object
-
-    def __init__(self, address, type_str, size, ref_list, length=None,
-                 value=None, name=None):
-        self.address = address
-        self.type_str = type_str
-        self.size = size
-        self._ref_list = _list_to_ref_list(ref_list)
-        if length is None:
-            self.length = -1
-        else:
-            self.length = length
-        self.value = value
-        self.name = name
-        self._referrer_list = NULL
-        self.total_size = 0 # uncomputed yet
-
-    property ref_list:
-        """The list of objects referenced by this object."""
-        def __get__(self):
-            return _ref_list_to_list(self._ref_list)
-
-        def __set__(self, value):
-            _free_ref_list(self._ref_list)
-            self._ref_list = _list_to_ref_list(value)
-
-    property num_refs:
-        """The length of the ref_list."""
-        def __get__(self):
-            if self._ref_list == NULL:
-                return 0
-            return self._ref_list.size
-
-    def __len__(self):
-        if self._ref_list == NULL:
-            return 0
-        return self._ref_list.size
-
-    property referrers:
-        """The list of objects that reference this object.
-
-        Original set to None, can be computed on demand.
-        """
-        def __get__(self):
-            return _ref_list_to_list(self._referrer_list)
-
-        def __set__(self, value):
-            _free_ref_list(self._referrer_list)
-            self._referrer_list = _list_to_ref_list(value)
-
-    property num_referrers:
-        """The length of the referrers list."""
-        def __get__(self):
-            if self._referrer_list == NULL:
-                return 0
-            return self._referrer_list.size
-
-    def __dealloc__(self):
-        cdef long i
-        _free_ref_list(self._ref_list)
-        self._ref_list = NULL
-        _free_ref_list(self._referrer_list)
-        self._referrer_list = NULL
-
-    def __repr__(self):
-        cdef int i, max_refs
-        cdef double total_size
-        if self.name is not None:
-            name_str = ', %s' % (self.name,)
-        else:
-            name_str = ''
-        if self._ref_list == NULL:
-            num_refs = 0
-            ref_space = ''
-            ref_str = ''
-        else:
-            num_refs = self._ref_list.size
-            ref_str = _format_list(self._ref_list)
-            ref_space = ' '
-        if self._referrer_list == NULL:
-            referrer_str = ''
-        else:
-            referrer_str = ', %d referrers %s' % (
-                self._referrer_list.size,
-                _format_list(self._referrer_list))
-        if self.value is None:
-            value_str = ''
-        else:
-            r = repr(self.value)
-            if isinstance(self.value, basestring):
-                if len(r) > 21:
-                    r = r[:18] + "..."
-            value_str = ', %s' % (r,)
-        if self.total_size == 0:
-            total_size_str = ''
-        else:
-            total_size = self.total_size
-            order = 'B'
-            if total_size > 800.0:
-                total_size = total_size / 1024
-                order = 'KiB'
-            if total_size > 800.0:
-                total_size = total_size / 1024
-                order = 'MiB'
-            if total_size > 800.0:
-                total_size = total_size / 1024
-                order = 'GiB'
-            total_size_str = ', %.1f%s' % (total_size, order)
-
-
-        return ('%s(%d, %s%s, %d bytes, %d refs%s%s%s%s%s)'
-                % (self.__class__.__name__, self.address, self.type_str,
-                   name_str, self.size, num_refs, ref_space, ref_str,
-                   referrer_str, value_str, total_size_str))
-
-    def __getitem__(self, offset):
-        cdef long off
-        cdef PyObject *res
-
-        if self._ref_list == NULL:
-            raise IndexError('%s has no refs' % (self,))
-        off = offset
-        if off >= self._ref_list.size:
-            raise IndexError('%s has only %d refs'
-                             % (self, self._ref_list.size))
-        res = self._ref_list.refs[off]
-        return <object>res
-
-    def _intern_from_cache(self, cache):
-        self.address = _set_default(cache, self.address)
-        self.type_str = _set_default(cache, self.type_str)
-
-    def to_json(self):
-        """Convert this MemObject to json."""
-        refs = []
-        for ref in sorted(self.ref_list):
-            refs.append(str(ref))
-        if self.length != -1:
-            length = '"len": %d, ' % self.length
-        else:
-            length = ''
-        if self.value is not None:
-            if self.type_str == 'int':
-                value = '"value": %s, ' % self.value
-            else:
-                value = '"value": "%s", ' % self.value
-        else:
-            value = ''
-        if self.name:
-            name = '"name": "%s", ' % self.name
-        else:
-            name = ''
-        return '{"address": %d, "type": "%s", "size": %d, %s%s%s"refs": [%s]}' % (
-            self.address, self.type_str, self.size, name, length, value,
-            ', '.join(refs))
-

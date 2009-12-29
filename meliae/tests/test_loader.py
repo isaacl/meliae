@@ -166,9 +166,19 @@ class TestRemoveExpensiveReferences(tests.TestCase):
 class TestMemObj(tests.TestCase):
 
     def test_to_json(self):
-        objs = list(loader.iter_objs(_example_dump))
+        manager = loader.load(_example_dump, show_prog=False)
+        objs = manager.objs.values()
         objs.sort(key=lambda x:x.address)
-        expected = sorted(_example_dump)
+        expected = [
+'{"address": 1, "type": "tuple", "size": 20, "refs": [2, 3]}',
+'{"address": 2, "type": "dict", "size": 124, "refs": [4, 5, 6, 7]}',
+'{"address": 3, "type": "list", "size": 44, "refs": [3, 4, 5]}',
+'{"address": 4, "type": "int", "size": 12, "value": 2, "refs": []}',
+'{"address": 5, "type": "int", "size": 12, "value": 1, "refs": []}',
+'{"address": 6, "type": "str", "size": 29, "value": "a str", "refs": []}',
+'{"address": 7, "type": "tuple", "size": 20, "refs": [4, 5]}',
+'{"address": 8, "type": "module", "size": 60, "value": "mymod", "refs": [2]}',
+        ]
         self.assertEqual(expected, [obj.to_json() for obj in objs])
 
 
