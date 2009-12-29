@@ -43,8 +43,9 @@ _example_dump = [
 '{"address": 4, "type": "int", "size": 12, "value": 2, "refs": []}',
 '{"address": 2, "type": "dict", "size": 124, "len": 2, "refs": [4, 5, 6, 7]}',
 '{"address": 7, "type": "tuple", "size": 20, "len": 2, "refs": [4, 5]}',
-'{"address": 6, "type": "str", "size": 29, "name": "bah", "len": 5, "value": "a str"'
+'{"address": 6, "type": "str", "size": 29, "len": 5, "value": "a str"'
  ', "refs": []}',
+'{"address": 8, "type": "module", "name": "mymod", "size": 60, "refs": [2]}',
 ]
 
 # Note that this doesn't have a complete copy of the references. Namely when
@@ -141,6 +142,7 @@ class TestRemoveExpensiveReferences(tests.TestCase):
 
     def test_remove_expensive_references(self):
         lines = list(_example_dump)
+        lines.pop(-1) # Remove the old module
         lines.append('{"address": 8, "type": "module", "size": 12'
                      ', "name": "mymod", "refs": [9]}')
         lines.append('{"address": 9, "type": "dict", "size": 124'
@@ -177,12 +179,13 @@ class TestObjManager(tests.TestCase):
         manager.compute_referrers()
         objs = manager.objs
         self.assertEqual((), objs[1].referrers)
-        self.assertEqual([1], objs[2].referrers)
+        self.assertEqual([1, 8], objs[2].referrers)
         self.assertEqual([1, 3], objs[3].referrers)
         self.assertEqual([2, 3, 7], objs[4].referrers)
         self.assertEqual([2, 3, 7], objs[5].referrers)
         self.assertEqual([2], objs[6].referrers)
         self.assertEqual([2], objs[7].referrers)
+        self.assertEqual((), objs[8].referrers)
 
     def test_compute_total_size(self):
         manager = loader.load(_example_dump, show_prog=False)
@@ -195,6 +198,7 @@ class TestObjManager(tests.TestCase):
         self.assertEqual(12, objs[5].total_size)
         self.assertEqual(29, objs[6].total_size)
         self.assertEqual(44, objs[7].total_size)
+        self.assertEqual(257, objs[8].total_size)
 
     def test_compute_total_size_missing_ref(self):
         lines = list(_example_dump)
@@ -207,6 +211,7 @@ class TestObjManager(tests.TestCase):
 
     def test_remove_expensive_references(self):
         lines = list(_example_dump)
+        lines.pop(-1) # Remove the old module
         lines.append('{"address": 8, "type": "module", "size": 12'
                      ', "name": "mymod", "refs": [9]}')
         lines.append('{"address": 9, "type": "dict", "size": 124'

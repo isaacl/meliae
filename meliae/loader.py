@@ -200,9 +200,8 @@ class ObjManager(object):
 
     def compute_referrers(self):
         """For each object, figure out who is referencing it."""
-        referrers = dict.fromkeys(self.objs, None)
-        id_cache = dict((obj.address, obj.address) for obj in
-                        self.objs.itervalues())
+        addresses = self.objs.keys()
+        referrers = dict.fromkeys(addresses, None)
         total = len(self.objs)
         for idx, obj in enumerate(self.objs.itervalues()):
             if self.show_progress and idx & 0x1ff == 0:
@@ -211,14 +210,13 @@ class ObjManager(object):
             address = obj.address
             for ref in obj.ref_list:
                 try:
-                    ref = id_cache[ref]
+                    refs = referrers[ref]
                 except KeyError:
                     # Reference to something outside this set of objects.
                     # Doesn't matter what it is, we won't be updating it.
                     continue
-                refs = referrers[ref]
                 # This is ugly, so it should be explained.
-                # To save memory pressure, referrers will point to one of 3
+                # To save memory pressure, referrers will point to one of 4
                 # types.
                 #   1) A simple integer, representing a single referrer
                 #      this saves the allocation of a separate structure
@@ -227,6 +225,7 @@ class ObjManager(object):
                 #      requires creating a new tuple to 'add' an entry.
                 #   3) A list, as before, for things with lots of referrers, we
                 #      use a regular list to let it grow.
+                #   4) None, no references from this object
                 t = type(refs)
                 if refs is None:
                     refs = address
@@ -244,7 +243,6 @@ class ObjManager(object):
                     raise TypeError('unknown refs type: %s\n'
                                     % (t,))
                 referrers[ref] = refs
-        del id_cache
         for obj in self.objs.itervalues():
             try:
                 refs = referrers.pop(obj.address)

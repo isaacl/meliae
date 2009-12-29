@@ -679,6 +679,7 @@ cdef class MemObjectCollection:
         cdef _MemObject *cur
         cdef _MemObjectProxy proxy
 
+        # TODO: Pre-allocate the full size list
         values = []
         for i from 0 <= i < self._table_mask:
             cur = self._table[i]
@@ -698,6 +699,7 @@ cdef class MemObjectCollection:
         cdef _MemObject *cur
         cdef _MemObjectProxy proxy
 
+        # TODO: Pre-allocate the full size list
         values = []
         for i from 0 <= i < self._table_mask:
             cur = self._table[i]
@@ -711,7 +713,7 @@ cdef class MemObjectCollection:
 
     def itervalues(self):
         """Return an iterable of values stored in this map."""
-        return self.values()
+        return _MOCValueIterator(self)
 
     def values(self):
         # This returns a list, but that is 'close enough' for what we need
@@ -729,6 +731,38 @@ cdef class MemObjectCollection:
                 values.append(proxy)
         return values
 
+
+cdef class _MOCValueIterator:
+    """A simple iterator over the values in a MOC."""
+
+    cdef MemObjectCollection collection
+    cdef int initial_active
+    cdef int table_pos
+
+    def __init__(self, collection):
+        self.collection = collection
+        self.initial_active = self.collection._active
+        self.table_pos = 0
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        cdef _MemObject *cur
+
+        if self.collection._active != self.initial_active:
+            raise RuntimeError('MemObjectCollection changed size during'
+                               ' iteration')
+        cur = NULL
+        while (cur == NULL or cur == _dummy
+               and self.table_pos <= self.collection._table_mask):
+            cur = self.collection._table[self.table_pos]
+            self.table_pos += 1
+        # self.table_pos points to the *next* entry, so make sure it is fully
+        # off the table
+        if self.table_pos > self.collection._table_mask + 1:
+            raise StopIteration()
+        return self.collection._proxy_for(<object>cur.address, cur)
 
 
 cdef class MemObject:

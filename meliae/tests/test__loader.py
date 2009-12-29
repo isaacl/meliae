@@ -225,10 +225,13 @@ class TestMemObjectCollection(tests.TestCase):
         moc = _loader.MemObjectCollection()
         moc.add(0, 'bar', 100)
         moc.add(1024, 'baz', 102)
-        moc.add(512, 'bing', 103)
-        self.assertEqual([0, 1024, 512], [x.address for x in moc.itervalues()])
+        moc.add(1023, 'booze', 103)
+        moc.add(512, 'bing', 104)
+        self.assertEqual([0, 1024, 512, 1023],
+                         [x.address for x in moc.itervalues()])
         del moc[0]
-        self.assertEqual([1024, 512], [x.address for x in moc.itervalues()])
+        self.assertEqual([1024, 512, 1023],
+                         [x.address for x in moc.itervalues()])
 
     def test_items(self):
         moc = _loader.MemObjectCollection()
