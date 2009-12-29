@@ -24,7 +24,10 @@ cdef extern from "Python.h":
     long PyObject_Hash(PyObject *) except -1
 
     PyObject *PyDict_GetItem(object d, object key)
+    PyObject *PyDict_GetItem_ptr "PyDict_GetItem" (object d, PyObject *key)
     int PyDict_SetItem(object d, object key, object val) except -1
+    int PyDict_SetItem_ptr "PyDict_SetItem" (object d, PyObject *key,
+                                             PyObject *val) except -1
     void Py_INCREF(PyObject*)
     void Py_XDECREF(PyObject*)
     void Py_DECREF(PyObject*)
@@ -59,6 +62,23 @@ cdef object _set_default(object d, object val):
     else:
         val = <object>tmp
     return val
+
+
+cdef int _set_default_ptr(object d, PyObject **val) except -1:
+    """Similar to _set_default, only it sets the val in place"""
+    cdef PyObject *tmp
+
+    tmp = PyDict_GetItem_ptr(d, val[0])
+    if tmp == NULL:
+        # val is unchanged, so we don't change the refcounts
+        PyDict_SetItem_ptr(d, val[0], val[0])
+        return 0
+    else:
+        # We will be pointing val to something new, so fix up the refcounts
+        Py_INCREF(tmp)
+        Py_DECREF(val[0])
+        val[0] = tmp
+        return 1
 
 
 cdef _free_ref_list(RefList *ref_list):
@@ -269,16 +289,16 @@ cdef class _MemObjectProxy:
             return self.__len__()
 
     def _intern_from_cache(self, cache):
-        address = _set_default(cache, <object>self._obj.address)
-        if (<PyObject *>address) != self._obj.address:
-            Py_DECREF(self._obj.address)
-            self._obj.address = <PyObject *>address
-            Py_INCREF(self._obj.address)
-        type_str = _set_default(cache, <object>self.type_str)
-        if (<PyObject *>type_str) != self._obj.type_str:
-            Py_DECREF(self._obj.type_str)
-            self._obj.type_str = <PyObject *>type_str
-            Py_INCREF(self._obj.type_str)
+        cdef long i
+        _set_default_ptr(cache, &self._obj.address)
+        _set_default_ptr(cache, &self._obj.type_str)
+        if self._obj.ref_list != NULL:
+            for i from 0 <= i < self._obj.ref_list.size:
+                _set_default_ptr(cache, &self._obj.ref_list.refs[i])
+        if self._obj.referrer_list != NULL:
+            for i from 0 <= i < self._obj.referrer_list.size:
+                _set_default_ptr(cache, &self._obj.referrer_list.refs[i])
+
 
     property ref_list:
         """The list of objects referenced by this object."""

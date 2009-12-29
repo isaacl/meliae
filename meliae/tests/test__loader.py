@@ -336,11 +336,29 @@ class Test_MemObjectProxy(tests.TestCase):
         self.assertTrue(mop.type_str is t)
         del self.moc[addr]
         mop = self.moc.add(1234566+1, 'my ' + ' ty' + 'pe', 256)
+        addr876543 = 876543
+        cache[addr876543] = addr876543
+        addr654321 = 654321
+        cache[addr654321] = addr654321
+        mop.ref_list = [876542+1, 654320+1]
+        mop.referrers = [876542+1, 654320+1]
         self.assertFalse(mop.address is addr)
         self.assertFalse(mop.type_str is t)
+        rl = mop.ref_list
+        self.assertFalse(rl[0] is addr876543)
+        self.assertFalse(rl[1] is addr654321)
+        rfrs = mop.referrers
+        self.assertFalse(rl[0] is addr876543)
+        self.assertFalse(rl[1] is addr654321)
         mop._intern_from_cache(cache)
         self.assertTrue(mop.address is addr)
         self.assertTrue(mop.type_str is t)
+        rl = mop.ref_list
+        self.assertTrue(rl[0] is addr876543)
+        self.assertTrue(rl[1] is addr654321)
+        rfrs = mop.referrers
+        self.assertTrue(rfrs[0] is addr876543)
+        self.assertTrue(rfrs[1] is addr654321)
 
     def test_ref_list(self):
         mop = self.moc.add(1234567, 'type', 256, ref_list=[1, 2, 3])
