@@ -221,16 +221,21 @@ class TestMemObjectCollection(tests.TestCase):
         self.assertEqual(1024, mop.address)
         self.assertEqual(1124, mop.size)
 
-    def test_itervalues(self):
+    def test_itervalues_to_tip(self):
         moc = _loader.MemObjectCollection()
         moc.add(0, 'bar', 100)
         moc.add(1024, 'baz', 102)
-        moc.add(1023, 'booze', 103)
         moc.add(512, 'bing', 104)
-        self.assertEqual([0, 1024, 512, 1023],
+        self.assertEqual([0, 1024, 512],
                          [x.address for x in moc.itervalues()])
         del moc[0]
+        self.assertEqual([1024, 512],
+                         [x.address for x in moc.itervalues()])
+        moc.add(1023, 'booze', 103)
         self.assertEqual([1024, 512, 1023],
+                         [x.address for x in moc.itervalues()])
+        del moc[1023]
+        self.assertEqual([1024, 512],
                          [x.address for x in moc.itervalues()])
 
     def test_items(self):

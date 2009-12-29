@@ -82,15 +82,18 @@ cdef int _set_default_ptr(object d, PyObject **val) except -1:
         return 1
 
 
-cdef _free_ref_list(RefList *ref_list):
+cdef int _free_ref_list(RefList *ref_list) except -1:
     """Decref and free the list."""
     cdef long i
 
     if ref_list == NULL:
-        return
+        return 0
     for i from 0 <= i < ref_list.size:
+        if ref_list.refs[i] == NULL:
+            raise RuntimeError('Somehow we got a NULL reference.')
         Py_DECREF(ref_list.refs[i])
     PyMem_Free(ref_list)
+    return 1
 
 
 cdef object _ref_list_to_list(RefList *ref_list):
@@ -106,8 +109,9 @@ cdef object _ref_list_to_list(RefList *ref_list):
     if ref_list == NULL:
         return ()
     refs = []
+    refs_append = refs.append
     for i from 0 <= i < ref_list.size:
-        refs.append(<object>(ref_list.refs[i]))
+        refs_append(<object>(ref_list.refs[i]))
     return refs
 
 
@@ -204,12 +208,29 @@ cdef class MemObjectCollection
 
 
 cdef class _MemObjectProxy:
-    """This class proxies between a real Python object and MOC's data.
+    """The standard interface for understanding memory consumption.
 
-    MOC stores the data as a fairly efficient table, without the overhead of
-    having a regular python object for every data point. However, the rest of
-    python code needs to interact with a real python object, so we generate
-    these on-the-fly.
+    MemObjectCollection stores the data as a fairly efficient table, without
+    the overhead of having a regular python object for every data point.
+    However, the rest of python code needs to interact with a real python
+    object, so we generate these on-the-fly.
+
+    Most attributes are properties, which thunk over to the actual data table
+    entry.
+
+    :ivar address: The address in memory of the original object. This is used
+        as the 'handle' to this object.
+    :ivar type_str: The type of this object
+    :ivar size: The number of bytes consumed for just this object. So for a
+        dict, this would be the basic_size + the size of the allocated array to
+        store the reference pointers
+    :ivar ref_list: A list of items referenced from this object
+    :ivar num_refs: Count of references, you can also use len()
+    :ivar value: A PyObject representing the Value for this object. (For
+        strings, it is the first 100 bytes, it may be None if we have no value,
+        or it may be an integer, etc.) This is also where the 'name' is stored
+        for objects like 'module'.
+    :ivar
     """
 
     cdef MemObjectCollection collection
@@ -238,6 +259,7 @@ cdef class _MemObjectProxy:
             self._managed_obj = NULL
 
     property address:
+        """The identifier for the tracked object."""
         def __get__(self):
             return <object>(self._obj.address)
 
@@ -313,11 +335,10 @@ cdef class _MemObjectProxy:
     # TODO: deprecated for clarity
     property referrers:
         def __get__(self):
-            return _ref_list_to_list(self._obj.parent_list)
+            return self.parents
 
         def __set__(self, value):
-            _free_ref_list(self._obj.parent_list)
-            self._obj.parent_list = _list_to_ref_list(value)
+            self.parents = value
 
     property parents:
         """The list of objects that reference this object.
@@ -753,15 +774,19 @@ cdef class _MOCValueIterator:
         if self.collection._active != self.initial_active:
             raise RuntimeError('MemObjectCollection changed size during'
                                ' iteration')
-        cur = NULL
-        while (cur == NULL or cur == _dummy
-               and self.table_pos <= self.collection._table_mask):
+        while (self.table_pos <= self.collection._table_mask):
             cur = self.collection._table[self.table_pos]
+            if cur != NULL and cur != _dummy:
+                break
             self.table_pos += 1
-        # self.table_pos points to the *next* entry, so make sure it is fully
-        # off the table
-        if self.table_pos > self.collection._table_mask + 1:
+        if self.table_pos > self.collection._table_mask:
             raise StopIteration()
+        # This entry is 'consumed', go on to the next
+        self.table_pos += 1
+        if cur == NULL or cur == _dummy:
+            raise RuntimeError('didn\'t run off the end, but got null/dummy'
+                ' %d, %d %d' % (<int>cur, self.table_pos,
+                                self.collection._table_mask))
         return self.collection._proxy_for(<object>cur.address, cur)
 
 
