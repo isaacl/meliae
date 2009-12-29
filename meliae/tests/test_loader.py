@@ -99,7 +99,7 @@ class TestLoad(tests.TestCase):
         keys = objs.keys()
         self.assertEqual([1234], keys)
         obj = objs[1234]
-        self.assertTrue(isinstance(obj, _loader.MemObject))
+        self.assertTrue(isinstance(obj, _loader._MemObjectProxy))
         # The address should be exactly the same python object as the key in
         # the objs dictionary.
         self.assertTrue(keys[0] is obj.address)

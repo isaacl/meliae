@@ -285,10 +285,11 @@ class ObjManager(object):
         """
         source = lambda:self.objs.itervalues()
         total_objs = len(self.objs)
+        # Add the 'null' object
+        self.objs.add(0, '<ex-reference>', 0, [])
         for changed, obj in remove_expensive_references(source, total_objs,
                                                         self.show_progress):
-            if changed:
-                self.objs[obj.address] = obj
+            continue
 
     def _compute_total_size(self, obj):
         pending_descendents = list(obj.ref_list)
@@ -398,7 +399,8 @@ class ObjManager(object):
                     continue
                 (dict_ref, type_ref) = obj.ref_list
                 type_obj = self.objs[type_ref]
-                if type_obj.type_str != 'type' or type_obj.name != obj.type_str:
+                if (type_obj.type_str != 'type'
+                    or type_obj.value != obj.type_str):
                     continue
                 extra_refs = [type_ref]
             dict_obj = self.objs[dict_ref]
@@ -561,23 +563,13 @@ def iter_objs(source, using_json=False, show_prog=False, input_size=0,
             % (line_num, len(objs), mb_read, input_mb, tdelta))
 
 
-def _load_moc(source, using_json, show_prog, input_size):
+def _load(source, using_json, show_prog, input_size):
     objs = _loader.MemObjectCollection()
     for memobj in iter_objs(source, using_json, show_prog, input_size, objs,
                             factory=objs.add):
         # objs.add automatically adds the object as it is created
         pass
     return ObjManager(objs, show_progress=show_prog)
-
-
-def _load(source, using_json, show_prog, input_size):
-    objs = {}
-    for memobj in iter_objs(source, using_json, show_prog, input_size, objs):
-        objs[memobj.address] = memobj
-    # _fill_total_size(objs)
-    return ObjManager(objs, show_progress=show_prog)
-
-_load = _load_moc
 
 
 def remove_expensive_references(source, total_objs=0, show_progress=False):
