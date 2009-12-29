@@ -366,6 +366,9 @@ class ObjManager(object):
         # instance has 2 pointers. The first is to __dict__, and the second is
         # to the 'type' object whose name matches the type of the instance.
         # Also __dict__ has only 1 referrer, and that is *this* object
+
+        # TODO: Handle old style classes. They seem to have type 'instanceobj',
+        #       and reference a 'classobj' with the actual type name
         collapsed = 0
         total = len(self.objs)
         for item_idx, (address, obj) in enumerate(self.objs.items()):
