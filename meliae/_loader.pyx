@@ -24,6 +24,8 @@ cdef extern from "Python.h":
 
     long PyObject_Hash(PyObject *) except -1
 
+    object PyList_New(Py_ssize_t)
+    void PyList_SET_ITEM(object, Py_ssize_t, object)
     PyObject *PyDict_GetItem(object d, object key)
     PyObject *PyDict_GetItem_ptr "PyDict_GetItem" (object d, PyObject *key)
     int PyDict_SetItem(object d, object key, object val) except -1
@@ -40,6 +42,8 @@ cdef extern from "Python.h":
 
     # void fprintf(void *, char *, ...)
     # void *stderr
+
+import gc
 
 
 ctypedef struct RefList:
@@ -716,20 +720,35 @@ cdef class MemObjectCollection:
 
     def items(self):
         """Iterate over (key, value) tuples."""
-        cdef long i
+        cdef long i, out_idx
         cdef _MemObject *cur
         cdef _MemObjectProxy proxy
 
-        # TODO: Pre-allocate the full size list
-        values = []
-        for i from 0 <= i < self._table_mask:
-            cur = self._table[i]
-            if cur == NULL or cur == _dummy:
-                continue
-            else:
-                address = <object>cur.address
-                proxy = self._proxy_for(address, cur)
-                values.append((address, proxy))
+        enabled = gc.isenabled()
+        if enabled:
+            # We are going to be creating a lot of objects here, but not with
+            # cycles, so we disable gc temporarily
+            # With an object list of ~3M items, this drops the .items() time
+            # from 25s down to 1.3s
+            gc.disable()
+        try:
+            values = PyList_New(self._active)
+            out_idx = 0
+            for i from 0 <= i < self._table_mask:
+                cur = self._table[i]
+                if cur == NULL or cur == _dummy:
+                    continue
+                else:
+                    address = <object>cur.address
+                    proxy = self._proxy_for(address, cur)
+                    item = (address, proxy)
+                    # SET_ITEM steals a reference
+                    Py_INCREF(<PyObject *>item)
+                    PyList_SET_ITEM(values, out_idx, item)
+                    out_idx += 1
+        finally:
+            if enabled:
+                gc.enable()
         return values
 
     def itervalues(self):
