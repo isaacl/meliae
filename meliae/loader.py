@@ -210,66 +210,73 @@ class ObjManager(object):
         get_refs = referrers.get
         total = len(self.objs)
         tlast = timer()-20
-        gc.disable()
-        for idx, obj in enumerate(self.objs.itervalues()):
-            if self.show_progress and idx & 0x3f == 0:
-                tnow = timer()
-                if tnow - tlast > 0.1:
-                    tlast = tnow
-                    sys.stderr.write('compute referrers %8d / %8d        \r'
-                                     % (idx, total))
-            address = obj.address
-            for ref in obj.ref_list:
-                refs = get_refs(ref, None)
-                # This is ugly, so it should be explained.
-                # To save memory pressure, referrers will point to one of 4
-                # types.
-                #   1) A simple integer, representing a single referrer
-                #      this saves the allocation of a separate structure
-                #      entirely
-                #   2) A tuple, slightly more efficient than a list, but
-                #      requires creating a new tuple to 'add' an entry.
-                #   3) A list, as before, for things with lots of referrers, we
-                #      use a regular list to let it grow.
-                #   4) None, no references from this object
-                t = type(refs)
-                if refs is None:
-                    refs = address
-                elif t in (int, long):
-                    refs = (refs, address)
-                elif t is tuple:
-                    if len(refs) >= 10:
-                        refs = list(refs)
+        enabled = gc.isenabled()
+        if enabled:
+            # We create a *lot* of temporary objects here, which are all
+            # cleaned up perfectly by refcounting, so disable gc for this loop.
+            gc.disable()
+        try:
+            for idx, obj in enumerate(self.objs.itervalues()):
+                if self.show_progress and idx & 0x3f == 0:
+                    tnow = timer()
+                    if tnow - tlast > 0.1:
+                        tlast = tnow
+                        sys.stderr.write('compute referrers %8d / %8d        \r'
+                                         % (idx, total))
+                address = obj.address
+                for ref in obj.ref_list:
+                    refs = get_refs(ref, None)
+                    # This is ugly, so it should be explained.
+                    # To save memory pressure, referrers will point to one of 4
+                    # types.
+                    #   1) A simple integer, representing a single referrer
+                    #      this saves the allocation of a separate structure
+                    #      entirely
+                    #   2) A tuple, slightly more efficient than a list, but
+                    #      requires creating a new tuple to 'add' an entry.
+                    #   3) A list, as before, for things with lots of
+                    #      referrers, we use a regular list to let it grow.
+                    #   4) None, no references from this object
+                    t = type(refs)
+                    if refs is None:
+                        refs = address
+                    elif t in (int, long):
+                        refs = (refs, address)
+                    elif t is tuple:
+                        if len(refs) >= 10:
+                            refs = list(refs)
+                            refs.append(address)
+                        else:
+                            refs = refs + (address,)
+                    elif t is list:
                         refs.append(address)
                     else:
-                        refs = refs + (address,)
-                elif t is list:
-                    refs.append(address)
-                else:
-                    raise TypeError('unknown refs type: %s\n' % (t,))
-                referrers[ref] = refs
-        if self.show_progress:
-            sys.stderr.write('compute referrers %8d / %8d        \r'
-                             % (idx, total))
-        for idx, obj in enumerate(self.objs.itervalues()):
-            if self.show_progress and idx & 0x3f == 0:
-                tnow = timer()
-                if tnow - tlast > 0.1:
-                    tlast = tnow
-                    sys.stderr.write('set referrers %8d / %8d        \r'
-                                     % (idx, total))
-            try:
-                refs = referrers.pop(obj.address)
-            except KeyError:
-                obj.referrers = ()
-            else:
-                if refs is None:
+                        raise TypeError('unknown refs type: %s\n' % (t,))
+                    referrers[ref] = refs
+            if self.show_progress:
+                sys.stderr.write('compute referrers %8d / %8d        \r'
+                                 % (idx, total))
+            for idx, obj in enumerate(self.objs.itervalues()):
+                if self.show_progress and idx & 0x3f == 0:
+                    tnow = timer()
+                    if tnow - tlast > 0.1:
+                        tlast = tnow
+                        sys.stderr.write('set referrers %8d / %8d        \r'
+                                         % (idx, total))
+                try:
+                    refs = referrers.pop(obj.address)
+                except KeyError:
                     obj.referrers = ()
-                elif type(refs) in (int, long):
-                    obj.referrers = (refs,)
                 else:
-                    obj.referrers = refs
-        gc.enable()
+                    if refs is None:
+                        obj.referrers = ()
+                    elif type(refs) in (int, long):
+                        obj.referrers = (refs,)
+                    else:
+                        obj.referrers = refs
+        finally:
+            if enabled:
+                gc.enable()
         if self.show_progress:
             sys.stderr.write('set referrers %8d / %8d        \n'
                              % (idx, total))
