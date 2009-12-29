@@ -37,6 +37,7 @@ cdef extern from "Python.h":
     # void fprintf(void *, char *, ...)
     # void *stderr
 
+import weakref
 
 ctypedef struct RefList:
     long size
@@ -145,7 +146,7 @@ cdef struct _MemObject:
     PyObject *name
     RefList *referrer_list
     unsigned long total_size
-    PyObject *proxy
+    PyObject *proxy_ref
 
 
 cdef int _free_mem_object(_MemObject *cur) except -1:
@@ -167,8 +168,8 @@ cdef int _free_mem_object(_MemObject *cur) except -1:
     cur.name = NULL
     _free_ref_list(cur.referrer_list)
     cur.referrer_list = NULL
-    Py_XDECREF(cur.proxy)
-    cur.proxy = NULL
+    Py_XDECREF(cur.proxy_ref)
+    cur.proxy_ref = NULL
     PyMem_Free(cur)
     return 1
 
@@ -195,6 +196,7 @@ cdef class _MemObjectProxy:
     cdef _MemObject *_obj
     # If not NULL, this will be freed when this object is deallocated
     cdef _MemObject *_managed_obj
+    cdef object __weakref__
 
     def __init__(self, collection):
         self.collection = collection
@@ -392,13 +394,18 @@ cdef class MemObjectCollection:
     cdef _MemObjectProxy _proxy_for(self, address, _MemObject *val):
         cdef _MemObjectProxy proxy
 
-        if val.proxy == NULL:
+        proxy = None
+        if val.proxy_ref != NULL:
+            proxy = (<object>val.proxy_ref)()
+            if proxy is None:
+                Py_DECREF(val.proxy_ref)
+                val.proxy_ref = NULL
+        if val.proxy_ref == NULL:
             proxy = _MemObjectProxy(self)
             proxy._obj = val
-            val.proxy = <PyObject *>proxy
-            Py_INCREF(val.proxy)
-        else:
-            proxy = <object>val.proxy
+            proxy_ref = weakref.ref(proxy)
+            val.proxy_ref = <PyObject *>proxy_ref
+            Py_INCREF(val.proxy_ref)
         return proxy
 
     def __getitem__(self, at):
@@ -439,15 +446,13 @@ cdef class MemObjectCollection:
         slot = self._lookup(address)
         if slot[0] == NULL or slot[0] == _dummy:
             raise KeyError('address %s not present' % (at,))
-        if slot[0].proxy != NULL:
-            # Have the proxy take over the memory lifetime. At the same time,
-            # we break the reference cycle, so that the proxy will get cleaned
-            # up properly
-            proxy = <object>slot[0].proxy
-            proxy._managed_obj = proxy._obj
-            Py_DECREF(slot[0].proxy)
-            slot[0].proxy = NULL
-        else:
+        proxy = None
+        if slot[0].proxy_ref != NULL:
+            # Have the proxy take over the memory lifetime
+            proxy = (<object>slot[0].proxy_ref)()
+            if proxy is not None:
+                proxy._managed_obj = proxy._obj
+        if proxy is None:
             # Without a proxy, we just nuke the object
             self._clear_slot(slot)
         slot[0] = _dummy
