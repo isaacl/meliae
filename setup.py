@@ -28,7 +28,7 @@ def config():
         "download_url": "https://launchpad.net/meliae/+download",
         "packages": ["meliae"],
         "scripts": ["strip_duplicates.py"],
-        "ext_modules": ext
+        "ext_modules": ext,
         "classifiers": [
             'Development Status :: 4 - Beta',
             'Environment :: Console',
@@ -40,7 +40,7 @@ def config():
             'Programming Language :: Python',
             'Programming Language :: Cython',
             'Topic :: Software Development :: Debuggers',
-        ]
+        ],
         "long_description": """\
 This project is similar to heapy (in the 'guppy' project), in its attempt to
 understand how memory has been allocated.
