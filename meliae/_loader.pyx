@@ -164,7 +164,7 @@ cdef struct _MemObject:
     #       name. As such, I should probably remove the redundancy, as it saves
     #       a pointer
     # PyObject *name
-    RefList *referrer_list
+    RefList *parent_list
     unsigned long total_size
     # This is an uncounted ref to a _MemObjectProxy. _MemObjectProxy also has a
     # refreence to this object, so when it disappears it can set the reference
@@ -189,8 +189,8 @@ cdef int _free_mem_object(_MemObject *cur) except -1:
     cur.value = NULL
     # Py_XDECREF(cur.name)
     # cur.name = NULL
-    _free_ref_list(cur.referrer_list)
-    cur.referrer_list = NULL
+    _free_ref_list(cur.parent_list)
+    cur.parent_list = NULL
     cur.proxy = NULL
     PyMem_Free(cur)
     return 1
@@ -296,9 +296,9 @@ cdef class _MemObjectProxy:
         if self._obj.ref_list != NULL:
             for i from 0 <= i < self._obj.ref_list.size:
                 _set_default_ptr(cache, &self._obj.ref_list.refs[i])
-        if self._obj.referrer_list != NULL:
-            for i from 0 <= i < self._obj.referrer_list.size:
-                _set_default_ptr(cache, &self._obj.referrer_list.refs[i])
+        if self._obj.parent_list != NULL:
+            for i from 0 <= i < self._obj.parent_list.size:
+                _set_default_ptr(cache, &self._obj.parent_list.refs[i])
 
 
     property ref_list:
@@ -310,24 +310,41 @@ cdef class _MemObjectProxy:
             _free_ref_list(self._obj.ref_list)
             self._obj.ref_list = _list_to_ref_list(value)
 
+    # TODO: deprecated for clarity
     property referrers:
+        def __get__(self):
+            return _ref_list_to_list(self._obj.parent_list)
+
+        def __set__(self, value):
+            _free_ref_list(self._obj.parent_list)
+            self._obj.parent_list = _list_to_ref_list(value)
+
+    property parents:
         """The list of objects that reference this object.
 
         Original set to None, can be computed on demand.
         """
         def __get__(self):
-            return _ref_list_to_list(self._obj.referrer_list)
+            return _ref_list_to_list(self._obj.parent_list)
 
         def __set__(self, value):
-            _free_ref_list(self._obj.referrer_list)
-            self._obj.referrer_list = _list_to_ref_list(value)
+            _free_ref_list(self._obj.parent_list)
+            self._obj.parent_list = _list_to_ref_list(value)
 
+    # TODO: deprecated for clarity
     property num_referrers:
-        """The length of the referrers list."""
+        """The length of the parents list."""
         def __get__(self):
-            if self._obj.referrer_list == NULL:
+            if self._obj.parent_list == NULL:
                 return 0
-            return self._obj.referrer_list.size
+            return self._obj.parent_list.size
+
+    property num_parents:
+        """The length of the parents list."""
+        def __get__(self):
+            if self._obj.parent_list == NULL:
+                return 0
+            return self._obj.parent_list.size
 
     def __getitem__(self, offset):
         cdef long off
@@ -351,10 +368,10 @@ cdef class _MemObjectProxy:
             refs = ''
         else:
             refs = ' %drefs' % (self._obj.ref_list.size,)
-        if self._obj.referrer_list == NULL:
-            referrers = ''
+        if self._obj.parent_list == NULL:
+            parent_str = ''
         else:
-            referrers = ' %dpar' % (self._obj.referrer_list.size,)
+            parent_str = ' %dpar' % (self._obj.parent_list.size,)
         if self._obj.value == NULL or self._obj.value == Py_None:
             val = ''
         else:
@@ -376,7 +393,7 @@ cdef class _MemObjectProxy:
             total_size_str = ' %.1f%stot' % (total_size, order)
         return '%s(%d %dB%s%s%s%s)' % (
             self.type_str, self.address, self.size,
-            refs, referrers, val, total_size_str)
+            refs, parent_str, val, total_size_str)
 
 
 cdef class MemObjectCollection:
@@ -589,7 +606,7 @@ cdef class MemObjectCollection:
 
 
     def add(self, address, type_str, size, ref_list=(), length=0,
-            value=None, name=None, referrer_list=(), total_size=0):
+            value=None, name=None, parent_list=(), total_size=0):
         """Add a new MemObject to this collection."""
         cdef _MemObject **slot, *new_entry
         cdef _MemObjectProxy proxy
@@ -634,7 +651,7 @@ cdef class MemObjectCollection:
         else:
             new_entry.value = <PyObject *>name
         Py_INCREF(new_entry.value)
-        new_entry.referrer_list = _list_to_ref_list(referrer_list)
+        new_entry.parent_list = _list_to_ref_list(parent_list)
         new_entry.total_size = total_size
 
         if self._filled * 3 > (self._table_mask + 1) * 2:

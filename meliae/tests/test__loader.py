@@ -386,6 +386,21 @@ class Test_MemObjectProxy(tests.TestCase):
         mop.total_size = (2**31+1)
         self.assertEqual(2**31+1, mop.total_size)
 
+    def test_parents(self):
+        mop = self.moc.add(1234567, 'type', 256, ref_list=[0, 255])
+        mop0 = self.moc[0]
+        self.assertEqual((), mop0.parents)
+        self.assertEqual(0, mop0.num_parents)
+        mop255 = self.moc[255]
+        self.assertEqual((), mop255.parents)
+        self.assertEqual(0, mop255.num_parents)
+        mop0.parents = [1234567]
+        self.assertEqual(1, mop0.num_parents)
+        self.assertEqual([1234567], mop0.parents)
+        mop255.parents = [1234567]
+        self.assertEqual(1, mop255.num_parents)
+        self.assertEqual([1234567], mop255.parents)
+
     def test_referrers(self):
         mop = self.moc.add(1234567, 'type', 256, ref_list=[0, 255])
         mop0 = self.moc[0]
@@ -411,7 +426,7 @@ class Test_MemObjectProxy(tests.TestCase):
         self.assertEqual("module(1236 12B 2refs 'named')", repr(mop))
         mop = self.moc.add(1237, 'module', 12, range(20), name='named')
         self.assertEqual("module(1237 12B 20refs 'named')", repr(mop))
-        mop = self.moc.add(1238, 'foo', 12, [10], referrer_list=[20, 30])
+        mop = self.moc.add(1238, 'foo', 12, [10], parent_list=[20, 30])
         self.assertEqual("foo(1238 12B 1refs 2par)", repr(mop))
         mop = self.moc.add(1239, 'str', 24, value='teststr')
         self.assertEqual("str(1239 24B 'teststr')", repr(mop))
