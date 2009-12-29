@@ -362,3 +362,15 @@ class Test_MemObjectProxy(tests.TestCase):
         self.assertEqual('int(1240 12B 12345 1.0Ktot)', repr(mop))
         mop.total_size = int(1024*1024*10.5)
         self.assertEqual('int(1240 12B 12345 10.5Mtot)', repr(mop))
+
+    def test_expand_refs_as_dict(self):
+        self.moc.add(1, 'str', 25, value='a')
+        self.moc.add(2, 'int', 12, value=1)
+        mop = self.moc.add(3, 'dict', 140, ref_list=[1, 2])
+        as_dict = mop.refs_as_dict()
+        self.assertEqual({'a': 1}, mop.refs_as_dict())
+        # It should even work if there is a 'trailing' entry, as after
+        # collapse, instances have the dict inline, and end with the reference
+        # to the type
+        mop = self.moc.add(4, 'MyClass', 156, ref_list=[2, 1, 8])
+        self.assertEqual({1: 'a'}, mop.refs_as_dict())

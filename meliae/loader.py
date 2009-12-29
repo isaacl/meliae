@@ -432,7 +432,9 @@ class ObjManager(object):
                 continue
             collapsed += 1
             # We found an instance \o/
-            obj.ref_list = dict_obj.ref_list + extra_refs
+            new_refs = list(dict_obj.ref_list)
+            new_refs.extend(extra_refs)
+            obj.ref_list = new_refs
             obj.size = obj.size + dict_obj.size
             obj.total_size = 0
             if obj.type_str == 'instance':
@@ -455,26 +457,7 @@ class ObjManager(object):
         :param obj: Should be a MemObject representing an instance (that has
             been collapsed) or a dict.
         """
-        as_dict = {}
-        ref_list = obj.ref_list
-        if obj.type_str not in ('dict', 'module'):
-            # Instance dicts end with a 'type' reference
-            ref_list = ref_list[:-1]
-        for idx in xrange(0, len(ref_list), 2):
-            key = self.objs[ref_list[idx]]
-            val = self.objs[ref_list[idx+1]]
-            if key.value is not None:
-                key = key.value
-            # TODO: We should consider recursing if val is a 'known' type, such
-            #       a tuple/dict/etc
-            if val.type_str == 'bool':
-                val = (val.value == 'True')
-            elif val.value is not None:
-                val = val.value
-            elif val.type_str == 'NoneType':
-                val = None
-            as_dict[key] = val
-        return as_dict
+        return obj.refs_as_dict()
 
     def refs_as_list(self, obj):
         """Expand the ref list, considering it to be a list structure."""
@@ -505,6 +488,7 @@ def load(source, using_json=None, show_prog=True):
         'True' to force using simplejson. None will probe to see if simplejson
         is available, and use it if it is. (With _speedups built, simplejson
         parses faster and more accurately than the regex.)
+    :param show_prog: If True, display the progress as we read in data
     """
     cleanup = None
     if isinstance(source, str):

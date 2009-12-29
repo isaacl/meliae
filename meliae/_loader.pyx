@@ -501,6 +501,33 @@ cdef class _MemObjectProxy:
         return '{"address": %d, "type": "%s", "size": %d, %s"refs": [%s]}' % (
             self.address, self.type_str, self.size, value, ', '.join(refs))
 
+    def refs_as_dict(self):
+        """Expand the ref list considering it to be a 'dict' structure.
+
+        Often we have dicts that point to simple strings and ints, etc. This
+        tries to expand that as much as possible.
+        """
+        as_dict = {}
+        ref_list = self.ref_list
+        if self.type_str not in ('dict', 'module'):
+            # Instance dicts end with a 'type' reference
+            ref_list = ref_list[:-1]
+        for idx in xrange(0, len(ref_list), 2):
+            key = self.collection[ref_list[idx]]
+            val = self.collection[ref_list[idx+1]]
+            if key.value is not None:
+                key = key.value
+            # TODO: We should consider recursing if val is a 'known' type, such
+            #       a tuple/dict/etc
+            if val.type_str == 'bool':
+                val = (val.value == 'True')
+            elif val.value is not None:
+                val = val.value
+            elif val.type_str == 'NoneType':
+                val = None
+            as_dict[key] = val
+        return as_dict
+
 
 cdef class MemObjectCollection:
     """Track a bunch of _MemObject instances."""
