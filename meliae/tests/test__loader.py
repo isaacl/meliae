@@ -400,3 +400,30 @@ class Test_MemObjectProxy(tests.TestCase):
         mop255.referrers = [1234567]
         self.assertEqual(1, mop255.num_referrers)
         self.assertEqual([1234567], mop255.referrers)
+
+    def test__repr__(self):
+        mop = self.moc.add(1234, 'str', 24)
+        self.assertEqual('str(1234 24B)', repr(mop))
+        mop = self.moc.add(1235, 'tuple', 12, [4567, 8900])
+        self.assertEqual('tuple(1235 12B 2refs)', repr(mop))
+        mop = self.moc.add(1236, 'module', 12, [4568, 8900], name='named')
+        # TODO: Will we show the refs? If so, we will want to truncate
+        self.assertEqual("module(1236 12B 2refs 'named')", repr(mop))
+        mop = self.moc.add(1237, 'module', 12, range(20), name='named')
+        self.assertEqual("module(1237 12B 20refs 'named')", repr(mop))
+        mop = self.moc.add(1238, 'foo', 12, [10], referrer_list=[20, 30])
+        self.assertEqual("foo(1238 12B 1refs 2par)", repr(mop))
+        mop = self.moc.add(1239, 'str', 24, value='teststr')
+        self.assertEqual("str(1239 24B 'teststr')", repr(mop))
+        # TODO: Will we want to truncate value?
+        mop.value = 'averylongstringwithmorestuff'
+        self.assertEqual("str(1239 24B 'averylongstringwithmorestuff')",
+                         repr(mop))
+        mop = self.moc.add(1240, 'int', 12, value=12345)
+        self.assertEqual('int(1240 12B 12345)', repr(mop))
+        mop.total_size = 12
+        self.assertEqual('int(1240 12B 12345 12.0Btot)', repr(mop))
+        mop.total_size = 1024
+        self.assertEqual('int(1240 12B 12345 1.0Ktot)', repr(mop))
+        mop.total_size = int(1024*1024*10.5)
+        self.assertEqual('int(1240 12B 12345 10.5Mtot)', repr(mop))

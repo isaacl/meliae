@@ -18,6 +18,7 @@ cdef extern from "Python.h":
     ctypedef unsigned long size_t
     ctypedef struct PyObject:
         pass
+    PyObject *Py_None
     void *PyMem_Malloc(size_t)
     void PyMem_Free(void *)
 
@@ -328,7 +329,6 @@ cdef class _MemObjectProxy:
                 return 0
             return self._obj.referrer_list.size
 
-
     def __getitem__(self, offset):
         cdef long off
 
@@ -345,6 +345,38 @@ cdef class _MemObjectProxy:
             # TODO: What to do if the object isn't present? I think returning a
             #       'no-such-object' proxy would be nicer than returning nothing
             raise
+
+    def __repr__(self):
+        if self._obj.ref_list == NULL:
+            refs = ''
+        else:
+            refs = ' %drefs' % (self._obj.ref_list.size,)
+        if self._obj.referrer_list == NULL:
+            referrers = ''
+        else:
+            referrers = ' %dpar' % (self._obj.referrer_list.size,)
+        if self._obj.value == NULL or self._obj.value == Py_None:
+            val = ''
+        else:
+            val = ' %r' % (<object>self._obj.value,)
+        if self._obj.total_size == 0:
+            total_size_str = ''
+        else:
+            total_size = float(self._obj.total_size)
+            order = 'B'
+            if total_size > 800.0:
+                total_size = total_size / 1024.0
+                order = 'K'
+            if total_size > 800.0:
+                total_size = total_size / 1024.0
+                order = 'M'
+            if total_size > 800.0:
+                total_size = total_size / 1024.0
+                order = 'G'
+            total_size_str = ' %.1f%stot' % (total_size, order)
+        return '%s(%d %dB%s%s%s%s)' % (
+            self.type_str, self.address, self.size,
+            refs, referrers, val, total_size_str)
 
 
 cdef class MemObjectCollection:

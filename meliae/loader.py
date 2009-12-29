@@ -564,7 +564,7 @@ def _load(source, using_json, show_prog, input_size):
     # _fill_total_size(objs)
     return ObjManager(objs, show_progress=show_prog)
 
-_load = _load_moc
+#_load = _load_moc
 
 
 def remove_expensive_references(source, total_objs=0, show_progress=False):
