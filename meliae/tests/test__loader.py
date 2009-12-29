@@ -228,6 +228,12 @@ class Test_MemObjectProxy(tests.TestCase):
         mop.value = 'a str'
         self.assertEqual('a str', mop.value)
 
+    def test_type_str(self):
+        mop = self.moc.add(1234, 'type', 256, value='testval')
+        self.assertEqual('type', mop.type_str)
+        mop.type_str = 'difftype'
+        self.assertEqual('difftype', mop.type_str)
+
     def test_name(self):
         mop = self.moc.add(1234, 'type', 256, name='the name')
         # 'name' entries get mapped as value

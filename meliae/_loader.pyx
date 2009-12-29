@@ -327,6 +327,13 @@ cdef class _MemObjectProxy:
         def __get__(self):
             return <object>(self._obj.type_str)
 
+        def __set__(self, value):
+            cdef PyObject *ptr
+            ptr = <PyObject *>value
+            Py_INCREF(ptr)
+            Py_DECREF(self._obj.type_str)
+            self._obj.type_str = ptr
+
     property size:
         """The number of bytes allocated for this object."""
         def __get__(self):

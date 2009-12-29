@@ -406,20 +406,27 @@ class ObjManager(object):
                     sys.stderr.write('checked %8d / %8d collapsed %8d    \r'
                                      % (item_idx, total, collapsed))
             if obj.type_str == 'module' and len(obj) == 1:
-                (dict_ref,) = obj.ref_list
+                (dict_obj,) = obj
+                if dict_obj.type_str != 'dict':
+                    continue
                 extra_refs = []
             else:
                 if len(obj) != 2:
                     continue
-                (dict_ref, type_ref) = obj.ref_list
-                type_obj = self.objs[type_ref]
-                if (type_obj.type_str != 'type'
-                    or type_obj.value != obj.type_str):
+                obj_1, obj_2 = obj
+                if obj_1.type_str == 'dict' and obj_2.type_str == 'type':
+                    # This is a new-style class
+                    dict_obj = obj_1
+                    type_obj = obj_2
+                elif (obj.type_str == 'instance'
+                      and obj_1.type_str == 'classobj'
+                      and obj_2.type_str == 'dict'):
+                    # This is an old-style class
+                    type_obj = obj_1
+                    dict_obj = obj_2
+                else:
                     continue
-                extra_refs = [type_ref]
-            dict_obj = self.objs[dict_ref]
-            if dict_obj.type_str != 'dict':
-                continue
+                extra_refs = [type_obj.address]
             if (dict_obj.num_referrers != 1
                 or dict_obj.referrers[0] != address):
                 continue
@@ -428,9 +435,11 @@ class ObjManager(object):
             obj.ref_list = dict_obj.ref_list + extra_refs
             obj.size = obj.size + dict_obj.size
             obj.total_size = 0
+            if obj.type_str == 'instance':
+                obj.type_str = type_obj.value
             # Now that all the data has been moved into the instance, remove
             # the dict from the collection
-            del self.objs[dict_ref]
+            del self.objs[dict_obj.address]
         if self.show_progress:
             sys.stderr.write('checked %8d / %8d collapsed %8d    \n'
                              % (item_idx, total, collapsed))

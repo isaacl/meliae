@@ -72,6 +72,20 @@ _instance_dump = [
 '{"address": 15, "type": "dict", "size": 140, "len": 2, "refs": [5, 6, 9, 6]}',
 ]
 
+_old_instance_dump = [
+'{"address": 1, "type": "instance", "size": 36, "refs": [2, 3]}',
+'{"address": 3, "type": "dict", "size": 140, "len": 2, "refs": [4, 5, 6, 7]}',
+'{"address": 7, "type": "int", "size": 12, "value": 2, "refs": []}',
+'{"address": 6, "type": "str", "size": 25, "len": 1, "value": "b", "refs": []}',
+'{"address": 5, "type": "int", "size": 12, "value": 1, "refs": []}',
+'{"address": 4, "type": "str", "size": 25, "len": 1, "value": "a", "refs": []}',
+'{"address": 2, "type": "classobj", "size": 48, "name": "OldStyle"'
+ ', "refs": [8, 43839680, 9]}',
+'{"address": 9, "type": "str", "size": 32, "len": 8, "value": "OldStyle"'
+ ', "refs": []}',
+'{"address": 8, "type": "tuple", "size": 28, "len": 0, "refs": []}',
+]
+
 
 class TestLoad(tests.TestCase):
 
@@ -269,6 +283,25 @@ class TestObjManager(tests.TestCase):
         self.assertEqual([1], tpl.referrers)
         self.assertEqual([5, 6, 9, 6], mod.ref_list)
         self.assertFalse(15 in manager.objs)
+
+    def test_collapse_old_instance_dicts(self):
+        manager = loader.load(_old_instance_dump, show_prog=False)
+        instance = manager.objs[1]
+        self.assertEqual('instance', instance.type_str)
+        self.assertEqual(36, instance.size)
+        self.assertEqual([2, 3], instance.ref_list)
+        inst_dict = manager[3]
+        self.assertEqual(140, inst_dict.size)
+        self.assertEqual([4, 5, 6, 7], inst_dict.ref_list)
+        manager.compute_referrers()
+        manager.collapse_instance_dicts()
+        # The instance dict has been removed, and its references moved into the
+        # instance, further, the type has been updated from generic 'instance'
+        # to being 'OldStyle'.
+        self.assertFalse(3 in manager.objs)
+        self.assertEqual(176, instance.size)
+        self.assertEqual([4, 5, 6, 7, 2], instance.ref_list)
+        self.assertEqual('OldStyle', instance.type_str)
 
     def test_expand_refs_as_dict(self):
         manager = loader.load(_instance_dump, show_prog=False)
