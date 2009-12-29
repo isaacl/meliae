@@ -34,6 +34,11 @@ from meliae import (
     _loader,
     )
 
+
+timer = time.time
+if sys.platform == 'win32':
+    timer = time.clock
+
 # This is the minimal regex that is guaranteed to match. In testing, it is
 # about 3x faster than using simplejson, it is just less generic.
 _object_re = re.compile(
@@ -200,21 +205,20 @@ class ObjManager(object):
 
     def compute_referrers(self):
         """For each object, figure out who is referencing it."""
-        addresses = self.objs.keys()
-        referrers = dict.fromkeys(addresses, None)
+        referrers = {}
+        get_refs = referrers.get
         total = len(self.objs)
+        tlast = timer()-20
         for idx, obj in enumerate(self.objs.itervalues()):
-            if self.show_progress and idx & 0x1ff == 0:
-                sys.stderr.write('compute referrers %8d / %8d        \r'
-                                 % (idx, total))
+            if self.show_progress and idx & 0x3f == 0:
+                tnow = timer()
+                if tnow - tlast > 0.1:
+                    tlast = tnow
+                    sys.stderr.write('compute referrers %8d / %8d        \r'
+                                     % (idx, total))
             address = obj.address
             for ref in obj.ref_list:
-                try:
-                    refs = referrers[ref]
-                except KeyError:
-                    # Reference to something outside this set of objects.
-                    # Doesn't matter what it is, we won't be updating it.
-                    continue
+                refs = get_refs(ref, None)
                 # This is ugly, so it should be explained.
                 # To save memory pressure, referrers will point to one of 4
                 # types.
@@ -240,10 +244,18 @@ class ObjManager(object):
                 elif t is list:
                     refs.append(address)
                 else:
-                    raise TypeError('unknown refs type: %s\n'
-                                    % (t,))
+                    raise TypeError('unknown refs type: %s\n' % (t,))
                 referrers[ref] = refs
-        for obj in self.objs.itervalues():
+        if self.show_progress:
+            sys.stderr.write('compute referrers %8d / %8d        \r'
+                             % (idx, total))
+        for idx, obj in enumerate(self.objs.itervalues()):
+            if self.show_progress and idx & 0x3f == 0:
+                tnow = timer()
+                if tnow - tlast > 0.1:
+                    tlast = tnow
+                    sys.stderr.write('set referrers %8d / %8d        \r'
+                                     % (idx, total))
             try:
                 refs = referrers.pop(obj.address)
             except KeyError:
@@ -256,7 +268,7 @@ class ObjManager(object):
                 else:
                     obj.referrers = refs
         if self.show_progress:
-            sys.stderr.write('compute referrers %8d / %8d        \n'
+            sys.stderr.write('set referrers %8d / %8d        \n'
                              % (idx, total))
 
     def remove_expensive_references(self):
@@ -504,7 +516,7 @@ def iter_objs(source, using_json=False, show_prog=False, input_size=0,
     :return: A generator of MemObjects.
     """
     # TODO: cStringIO?
-    tstart = time.time()
+    tstart = timer()
     input_mb = input_size / 1024. / 1024.
     temp_cache = {}
     address_re = re.compile(
@@ -537,13 +549,13 @@ def iter_objs(source, using_json=False, show_prog=False, input_size=0,
         if show_prog and (line_num - last > 5000):
             last = line_num
             mb_read = bytes_read / 1024. / 1024
-            tdelta = time.time() - tstart
+            tdelta = timer() - tstart
             sys.stderr.write(
                 'loading... line %d, %d objs, %5.1f / %5.1f MiB read in %.1fs\r'
                 % (line_num, len(objs), mb_read, input_mb, tdelta))
     if show_prog:
         mb_read = bytes_read / 1024. / 1024
-        tdelta = time.time() - tstart
+        tdelta = timer() - tstart
         sys.stderr.write(
             'loaded line %d, %d objs, %5.1f / %5.1f MiB read in %.1fs        \n'
             % (line_num, len(objs), mb_read, input_mb, tdelta))
