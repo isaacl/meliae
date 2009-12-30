@@ -256,6 +256,9 @@ class TestObjManager(tests.TestCase):
         self.assertFalse(15 in manager.objs)
 
     def test_expand_refs_as_dict(self):
+        # TODO: This test fails if simplejson is not installed, because the
+        #       regex extractor does not cast to integers (they stay as
+        #       strings). We could fix the test, or fix the extractor.
         manager = loader.load(_instance_dump, show_prog=False)
         as_dict = manager.refs_as_dict(manager[15])
         self.assertEqual({1: 'c', 'b': 'c'}, as_dict)
@@ -266,5 +269,8 @@ class TestObjManager(tests.TestCase):
                           'd': manager[12]}, manager.refs_as_dict(manager[1]))
 
     def test_expand_refs_as_list(self):
+        # TODO: This test fails if simplejson is not installed, because the
+        #       regex extractor does not cast to integers (they stay as
+        #       strings). We could fix the test, or fix the extractor.
         manager = loader.load(_instance_dump, show_prog=False)
         self.assertEqual([2], manager.refs_as_list(manager[12]))
