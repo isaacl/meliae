@@ -154,6 +154,19 @@ class TestSizeOf(tests.TestCase):
     def test_None(self):
         self.assertSizeOf(2, None, has_gc=False)
 
+    def test__sizeof__instance(self):
+        # __sizeof__ appears to have been introduced in python 2.6, and
+        # is meant to return the number of bytes allocated to this
+        # object. It does not include GC overhead, that seems to be added back
+        # in as part of sys.getsizeof(). So meliae does the same in size_of()
+        class CustomSize(object):
+            def __init__(self, size):
+                self.size = size
+            def __sizeof__(self):
+                return self.size
+        self.assertSizeOf(0, CustomSize(10), 10, has_gc=True)
+        self.assertSizeOf(0, CustomSize(20), 20, has_gc=True)
+
 
 def _string_to_json(s):
     out = ['"']

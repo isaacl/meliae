@@ -1,14 +1,14 @@
 /* Copyright (C) 2009 Canonical Ltd
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
  * published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful, but
  * WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
  * General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -99,6 +99,40 @@ _var_object_size(PyVarObject *c_obj)
             + num_entries * c_obj->ob_type->tp_itemsize;
 }
 
+Py_ssize_t
+_size_of_from__sizeof__(PyObject *c_obj)
+{
+    PyObject *size_obj = NULL;
+    Py_ssize_t size = -1;
+
+    if (PyType_CheckExact(c_obj)) {
+        // Types themselves may have a __sizeof__ attribute, but it is the
+        // unbound method, which takes an instance
+        return -1;
+    }
+    size_obj = PyObject_CallMethod(c_obj, "__sizeof__", NULL);
+    if (size_obj == NULL) {
+        // Not sure what happened, but this won't work, it could be a simple
+        // attribute error, or it could be something else.
+        PyErr_Clear();
+        return -1;
+    }
+    size = PyInt_AsSsize_t(size_obj);
+    if (size == -1) {
+        // Probably an error occurred, we don't know for sure, but we might as
+        // well just claim that we don't know the size. We *could* check
+        // PyErr_Occurred(), but if we are just clearing it anyway...
+        PyErr_Clear();
+        return -1;
+    }
+    // There is one trick left. Namely, __sizeof__ doesn't seem to include the
+    // GC overhead, so let's add that back in
+    if (PyType_HasFeature(c_obj->ob_type, Py_TPFLAGS_HAVE_GC)) {
+        size += sizeof(PyGC_Head);
+    }
+    return size;
+}
+
 
 Py_ssize_t
 _size_of_list(PyListObject *c_obj)
@@ -147,6 +181,8 @@ _size_of_unicode(PyUnicodeObject *c_obj)
 Py_ssize_t
 _size_of(PyObject *c_obj)
 {
+    Py_ssize_t size;
+
     if PyList_Check(c_obj) {
         return _size_of_list((PyListObject *)c_obj);
     } else if PyAnySet_Check(c_obj) {
@@ -155,6 +191,11 @@ _size_of(PyObject *c_obj)
         return _size_of_dict((PyDictObject *)c_obj);
     } else if PyUnicode_Check(c_obj) {
         return _size_of_unicode((PyUnicodeObject *)c_obj);
+    }
+
+    size = _size_of_from__sizeof__(c_obj);
+    if (size != -1) {
+        return size;
     }
 
     if (c_obj->ob_type->tp_itemsize != 0) {
