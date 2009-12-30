@@ -166,6 +166,9 @@ class TestSizeOf(tests.TestCase):
                 return self.size
         self.assertSizeOf(0, CustomSize(10), 10, has_gc=True)
         self.assertSizeOf(0, CustomSize(20), 20, has_gc=True)
+        # If we get '-1' as the size we assume something is wrong, and fall
+        # back to the original size
+        self.assertSizeOf(4, CustomSize(-1), has_gc=True)
 
 
 def _string_to_json(s):
