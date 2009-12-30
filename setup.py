@@ -62,10 +62,13 @@ The name is simply a fun word (means Ash-wood Nymph).
     from distutils.core import setup, Extension
 
     try:
-        from Pyrex.Distutils import build_ext
+        from Cython.Distutils import build_ext
     except ImportError:
-        print "We depend on having Pyrex installed."
-        return
+        try:
+            from Pyrex.Distutils import build_ext
+        except ImportError:
+            print "We depend on having Cython or Pyrex installed."
+            return
 
     kwargs["cmdclass"] = {"build_ext": build_ext}
     ext.append(Extension("meliae._scanner",
