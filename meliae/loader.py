@@ -17,6 +17,7 @@
 Currently requires simplejson to parse.
 """
 
+import gc
 import math
 import os
 import re
@@ -33,6 +34,11 @@ from meliae import (
     _intset,
     _loader,
     )
+
+
+timer = time.time
+if sys.platform == 'win32':
+    timer = time.clock
 
 # This is the minimal regex that is guaranteed to match. In testing, it is
 # about 3x faster than using simplejson, it is just less generic.
@@ -200,65 +206,79 @@ class ObjManager(object):
 
     def compute_referrers(self):
         """For each object, figure out who is referencing it."""
-        referrers = dict.fromkeys(self.objs, None)
-        id_cache = dict((obj.address, obj.address) for obj in
-                        self.objs.itervalues())
+        referrers = {}
+        get_refs = referrers.get
         total = len(self.objs)
-        for idx, obj in enumerate(self.objs.itervalues()):
-            if self.show_progress and idx & 0x1ff == 0:
-                sys.stderr.write('compute referrers %8d / %8d        \r'
-                                 % (idx, total))
-            address = obj.address
-            for ref in obj.ref_list:
-                try:
-                    ref = id_cache[ref]
-                except KeyError:
-                    # Reference to something outside this set of objects.
-                    # Doesn't matter what it is, we won't be updating it.
-                    continue
-                refs = referrers[ref]
-                # This is ugly, so it should be explained.
-                # To save memory pressure, referrers will point to one of 3
-                # types.
-                #   1) A simple integer, representing a single referrer
-                #      this saves the allocation of a separate structure
-                #      entirely
-                #   2) A tuple, slightly more efficient than a list, but
-                #      requires creating a new tuple to 'add' an entry.
-                #   3) A list, as before, for things with lots of referrers, we
-                #      use a regular list to let it grow.
-                t = type(refs)
-                if refs is None:
-                    refs = address
-                elif t in (int, long):
-                    refs = (refs, address)
-                elif t is tuple:
-                    if len(refs) >= 10:
-                        refs = list(refs)
+        tlast = timer()-20
+        enabled = gc.isenabled()
+        if enabled:
+            # We create a *lot* of temporary objects here, which are all
+            # cleaned up perfectly by refcounting, so disable gc for this loop.
+            gc.disable()
+        try:
+            for idx, obj in enumerate(self.objs.itervalues()):
+                if self.show_progress and idx & 0x3f == 0:
+                    tnow = timer()
+                    if tnow - tlast > 0.1:
+                        tlast = tnow
+                        sys.stderr.write('compute referrers %8d / %8d        \r'
+                                         % (idx, total))
+                address = obj.address
+                for ref in obj.ref_list:
+                    refs = get_refs(ref, None)
+                    # This is ugly, so it should be explained.
+                    # To save memory pressure, referrers will point to one of 4
+                    # types.
+                    #   1) A simple integer, representing a single referrer
+                    #      this saves the allocation of a separate structure
+                    #      entirely
+                    #   2) A tuple, slightly more efficient than a list, but
+                    #      requires creating a new tuple to 'add' an entry.
+                    #   3) A list, as before, for things with lots of
+                    #      referrers, we use a regular list to let it grow.
+                    #   4) None, no references from this object
+                    t = type(refs)
+                    if refs is None:
+                        refs = address
+                    elif t in (int, long):
+                        refs = (refs, address)
+                    elif t is tuple:
+                        if len(refs) >= 10:
+                            refs = list(refs)
+                            refs.append(address)
+                        else:
+                            refs = refs + (address,)
+                    elif t is list:
                         refs.append(address)
                     else:
-                        refs = refs + (address,)
-                elif t is list:
-                    refs.append(address)
-                else:
-                    raise TypeError('unknown refs type: %s\n'
-                                    % (t,))
-                referrers[ref] = refs
-        del id_cache
-        for obj in self.objs.itervalues():
-            try:
-                refs = referrers.pop(obj.address)
-            except KeyError:
-                obj.referrers = ()
-            else:
-                if refs is None:
+                        raise TypeError('unknown refs type: %s\n' % (t,))
+                    referrers[ref] = refs
+            if self.show_progress:
+                sys.stderr.write('compute referrers %8d / %8d        \r'
+                                 % (idx, total))
+            for idx, obj in enumerate(self.objs.itervalues()):
+                if self.show_progress and idx & 0x3f == 0:
+                    tnow = timer()
+                    if tnow - tlast > 0.1:
+                        tlast = tnow
+                        sys.stderr.write('set referrers %8d / %8d        \r'
+                                         % (idx, total))
+                try:
+                    refs = referrers.pop(obj.address)
+                except KeyError:
                     obj.referrers = ()
-                elif type(refs) in (int, long):
-                    obj.referrers = (refs,)
                 else:
-                    obj.referrers = refs
+                    if refs is None:
+                        obj.referrers = ()
+                    elif type(refs) in (int, long):
+                        obj.referrers = (refs,)
+                    else:
+                        obj.referrers = refs
+        finally:
+            if enabled:
+                gc.enable()
         if self.show_progress:
-            sys.stderr.write('compute referrers %8d / %8d        \n'
+            sys.stderr.write('set referrers %8d / %8d        \n'
                              % (idx, total))
 
     def remove_expensive_references(self):
@@ -275,10 +295,11 @@ class ObjManager(object):
         """
         source = lambda:self.objs.itervalues()
         total_objs = len(self.objs)
+        # Add the 'null' object
+        self.objs.add(0, '<ex-reference>', 0, [])
         for changed, obj in remove_expensive_references(source, total_objs,
                                                         self.show_progress):
-            if changed:
-                self.objs[obj.address] = obj
+            continue
 
     def _compute_total_size(self, obj):
         pending_descendents = list(obj.ref_list)
@@ -342,7 +363,7 @@ class ObjManager(object):
     def get_all(self, type_str):
         """Return all objects that match a given type."""
         all = [o for o in self.objs.itervalues() if o.type_str == type_str]
-        all.sort(key=lambda x:(x.size, x.num_refs, x.num_referrers),
+        all.sort(key=lambda x:(x.size, len(x), x.num_referrers),
                  reverse=True)
         return all
 
@@ -366,77 +387,77 @@ class ObjManager(object):
         # instance has 2 pointers. The first is to __dict__, and the second is
         # to the 'type' object whose name matches the type of the instance.
         # Also __dict__ has only 1 referrer, and that is *this* object
+
+        # TODO: Handle old style classes. They seem to have type 'instanceobj',
+        #       and reference a 'classobj' with the actual type name
         collapsed = 0
         total = len(self.objs)
+        tlast = timer()-20
         for item_idx, (address, obj) in enumerate(self.objs.items()):
             if obj.type_str in ('str', 'dict', 'tuple', 'list', 'type',
                                 'function', 'wrapper_descriptor',
                                 'code', 'classobj', 'int',
                                 'weakref'):
                 continue
-            if self.show_progress and item_idx & 0x5ff:
-                sys.stderr.write('checked %8d / %8d collapsed %8d    \r'
-                                 % (item_idx, total, collapsed))
-            if obj.type_str == 'module' and obj.num_refs == 1:
-                (dict_ref,) = obj.ref_list
+            if self.show_progress and item_idx & 0x3f:
+                tnow = timer()
+                if tnow - tlast > 0.1:
+                    tlast = tnow
+                    sys.stderr.write('checked %8d / %8d collapsed %8d    \r'
+                                     % (item_idx, total, collapsed))
+            if obj.type_str == 'module' and len(obj) == 1:
+                (dict_obj,) = obj
+                if dict_obj.type_str != 'dict':
+                    continue
                 extra_refs = []
             else:
-                if obj.num_refs != 2:
+                if len(obj) != 2:
                     continue
-                (dict_ref, type_ref) = obj.ref_list
-                type_obj = self.objs[type_ref]
-                if type_obj.type_str != 'type' or type_obj.name != obj.type_str:
+                obj_1, obj_2 = obj
+                if obj_1.type_str == 'dict' and obj_2.type_str == 'type':
+                    # This is a new-style class
+                    dict_obj = obj_1
+                    type_obj = obj_2
+                elif (obj.type_str == 'instance'
+                      and obj_1.type_str == 'classobj'
+                      and obj_2.type_str == 'dict'):
+                    # This is an old-style class
+                    type_obj = obj_1
+                    dict_obj = obj_2
+                else:
                     continue
-                extra_refs = [type_ref]
-            dict_obj = self.objs[dict_ref]
-            if dict_obj.type_str != 'dict':
-                continue
+                extra_refs = [type_obj.address]
             if (dict_obj.num_referrers != 1
                 or dict_obj.referrers[0] != address):
                 continue
             collapsed += 1
             # We found an instance \o/
-            obj.ref_list = dict_obj.ref_list + extra_refs
+            new_refs = list(dict_obj.ref_list)
+            new_refs.extend(extra_refs)
+            obj.ref_list = new_refs
             obj.size = obj.size + dict_obj.size
             obj.total_size = 0
+            if obj.type_str == 'instance':
+                obj.type_str = type_obj.value
             # Now that all the data has been moved into the instance, remove
             # the dict from the collection
-            del self.objs[dict_ref]
+            del self.objs[dict_obj.address]
         if self.show_progress:
-            sys.stderr.write('checked %8d / %8d collapsed %8d    \r'
+            sys.stderr.write('checked %8d / %8d collapsed %8d    \n'
                              % (item_idx, total, collapsed))
         if collapsed:
             self.compute_referrers()
 
     def refs_as_dict(self, obj):
         """Expand the ref list considering it to be a 'dict' structure.
-        
+
         Often we have dicts that point to simple strings and ints, etc. This
         tries to expand that as much as possible.
 
         :param obj: Should be a MemObject representing an instance (that has
             been collapsed) or a dict.
         """
-        as_dict = {}
-        ref_list = obj.ref_list
-        if obj.type_str not in ('dict', 'module'):
-            # Instance dicts end with a 'type' reference
-            ref_list = ref_list[:-1]
-        for idx in xrange(0, len(ref_list), 2):
-            key = self.objs[ref_list[idx]]
-            val = self.objs[ref_list[idx+1]]
-            if key.value is not None:
-                key = key.value
-            # TODO: We should consider recursing if val is a 'known' type, such
-            #       a tuple/dict/etc
-            if val.type_str == 'bool':
-                val = (val.value == 'True')
-            elif val.value is not None:
-                val = val.value
-            elif val.type_str == 'NoneType':
-                val = None
-            as_dict[key] = val
-        return as_dict
+        return obj.refs_as_dict()
 
     def refs_as_list(self, obj):
         """Expand the ref list, considering it to be a list structure."""
@@ -467,6 +488,7 @@ def load(source, using_json=None, show_prog=True):
         'True' to force using simplejson. None will probe to see if simplejson
         is available, and use it if it is. (With _speedups built, simplejson
         parses faster and more accurately than the regex.)
+    :param show_prog: If True, display the progress as we read in data
     """
     cleanup = None
     if isinstance(source, str):
@@ -488,7 +510,8 @@ def load(source, using_json=None, show_prog=True):
             cleanup()
 
 
-def iter_objs(source, using_json=False, show_prog=False, input_size=0, objs=None):
+def iter_objs(source, using_json=False, show_prog=False, input_size=0,
+              objs=None, factory=None):
     """Iterate MemObjects from json.
 
     :param source: A line iterator.
@@ -497,10 +520,12 @@ def iter_objs(source, using_json=False, show_prog=False, input_size=0, objs=None
     :param input_size: The size of the input if known (in bytes) or 0.
     :param objs: Either None or a dict containing objects by address. If not
         None, then duplicate objects will not be parsed or output.
-    :return: A generator of MemObjects.
+    :param factory: Use this to create new instances, if None, use
+        _loader._MemObjectProxy.from_args
+    :return: A generator of memory objects.
     """
     # TODO: cStringIO?
-    tstart = time.time()
+    tstart = timer()
     input_mb = input_size / 1024. / 1024.
     temp_cache = {}
     address_re = re.compile(
@@ -513,6 +538,8 @@ def iter_objs(source, using_json=False, show_prog=False, input_size=0, objs=None
         decoder = _from_json
     else:
         decoder = _from_line
+    if factory is None:
+        factory = _loader._MemObjectProxy_from_args
     for line_num, line in enumerate(source):
         bytes_read += len(line)
         if line in ("[\n", "]\n"):
@@ -527,27 +554,28 @@ def iter_objs(source, using_json=False, show_prog=False, input_size=0, objs=None
             address = int(m.group('address'))
             if address in objs:
                 continue
-        yield decoder(_loader.MemObject, line, temp_cache=temp_cache)
+        yield decoder(factory, line, temp_cache=temp_cache)
         if show_prog and (line_num - last > 5000):
             last = line_num
             mb_read = bytes_read / 1024. / 1024
-            tdelta = time.time() - tstart
+            tdelta = timer() - tstart
             sys.stderr.write(
                 'loading... line %d, %d objs, %5.1f / %5.1f MiB read in %.1fs\r'
                 % (line_num, len(objs), mb_read, input_mb, tdelta))
     if show_prog:
         mb_read = bytes_read / 1024. / 1024
-        tdelta = time.time() - tstart
+        tdelta = timer() - tstart
         sys.stderr.write(
             'loaded line %d, %d objs, %5.1f / %5.1f MiB read in %.1fs        \n'
             % (line_num, len(objs), mb_read, input_mb, tdelta))
 
 
 def _load(source, using_json, show_prog, input_size):
-    objs = {}
-    for memobj in iter_objs(source, using_json, show_prog, input_size, objs):
-        objs[memobj.address] = memobj
-    # _fill_total_size(objs)
+    objs = _loader.MemObjectCollection()
+    for memobj in iter_objs(source, using_json, show_prog, input_size, objs,
+                            factory=objs.add):
+        # objs.add automatically adds the object as it is created
+        pass
     return ObjManager(objs, show_progress=show_prog)
 
 
@@ -598,7 +626,7 @@ def remove_expensive_references(source, total_objs=0, show_progress=False):
     # Second pass, any object which refers to something in noref_objs will
     # have that reference removed, and replaced with the null_memobj
     num_expensive = len(noref_objs)
-    null_memobj = _loader.MemObject(0, '<ex-reference>', 0, [])
+    null_memobj = _loader._MemObjectProxy_from_args(0, '<ex-reference>', 0, [])
     if not seen_zero:
         yield (True, null_memobj)
     if show_progress and total_objs == 0:

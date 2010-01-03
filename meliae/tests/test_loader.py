@@ -43,8 +43,9 @@ _example_dump = [
 '{"address": 4, "type": "int", "size": 12, "value": 2, "refs": []}',
 '{"address": 2, "type": "dict", "size": 124, "len": 2, "refs": [4, 5, 6, 7]}',
 '{"address": 7, "type": "tuple", "size": 20, "len": 2, "refs": [4, 5]}',
-'{"address": 6, "type": "str", "size": 29, "name": "bah", "len": 5, "value": "a str"'
+'{"address": 6, "type": "str", "size": 29, "len": 5, "value": "a str"'
  ', "refs": []}',
+'{"address": 8, "type": "module", "name": "mymod", "size": 60, "refs": [2]}',
 ]
 
 # Note that this doesn't have a complete copy of the references. Namely when
@@ -69,6 +70,20 @@ _instance_dump = [
 '{"address": 13, "type": "int", "size": 12, "value": 2, "refs": []}',
 '{"address": 14, "type": "module", "size": 28, "name": "sys", "refs": [15]}',
 '{"address": 15, "type": "dict", "size": 140, "len": 2, "refs": [5, 6, 9, 6]}',
+]
+
+_old_instance_dump = [
+'{"address": 1, "type": "instance", "size": 36, "refs": [2, 3]}',
+'{"address": 3, "type": "dict", "size": 140, "len": 2, "refs": [4, 5, 6, 7]}',
+'{"address": 7, "type": "int", "size": 12, "value": 2, "refs": []}',
+'{"address": 6, "type": "str", "size": 25, "len": 1, "value": "b", "refs": []}',
+'{"address": 5, "type": "int", "size": 12, "value": 1, "refs": []}',
+'{"address": 4, "type": "str", "size": 25, "len": 1, "value": "a", "refs": []}',
+'{"address": 2, "type": "classobj", "size": 48, "name": "OldStyle"'
+ ', "refs": [8, 43839680, 9]}',
+'{"address": 9, "type": "str", "size": 32, "len": 8, "value": "OldStyle"'
+ ', "refs": []}',
+'{"address": 8, "type": "tuple", "size": 28, "len": 0, "refs": []}',
 ]
 
 
@@ -98,7 +113,7 @@ class TestLoad(tests.TestCase):
         keys = objs.keys()
         self.assertEqual([1234], keys)
         obj = objs[1234]
-        self.assertTrue(isinstance(obj, _loader.MemObject))
+        self.assertTrue(isinstance(obj, _loader._MemObjectProxy))
         # The address should be exactly the same python object as the key in
         # the objs dictionary.
         self.assertTrue(keys[0] is obj.address)
@@ -141,6 +156,7 @@ class TestRemoveExpensiveReferences(tests.TestCase):
 
     def test_remove_expensive_references(self):
         lines = list(_example_dump)
+        lines.pop(-1) # Remove the old module
         lines.append('{"address": 8, "type": "module", "size": 12'
                      ', "name": "mymod", "refs": [9]}')
         lines.append('{"address": 9, "type": "dict", "size": 124'
@@ -164,9 +180,19 @@ class TestRemoveExpensiveReferences(tests.TestCase):
 class TestMemObj(tests.TestCase):
 
     def test_to_json(self):
-        objs = list(loader.iter_objs(_example_dump))
+        manager = loader.load(_example_dump, show_prog=False)
+        objs = manager.objs.values()
         objs.sort(key=lambda x:x.address)
-        expected = sorted(_example_dump)
+        expected = [
+'{"address": 1, "type": "tuple", "size": 20, "refs": [2, 3]}',
+'{"address": 2, "type": "dict", "size": 124, "refs": [4, 5, 6, 7]}',
+'{"address": 3, "type": "list", "size": 44, "refs": [3, 4, 5]}',
+'{"address": 4, "type": "int", "size": 12, "value": 2, "refs": []}',
+'{"address": 5, "type": "int", "size": 12, "value": 1, "refs": []}',
+'{"address": 6, "type": "str", "size": 29, "value": "a str", "refs": []}',
+'{"address": 7, "type": "tuple", "size": 20, "refs": [4, 5]}',
+'{"address": 8, "type": "module", "size": 60, "value": "mymod", "refs": [2]}',
+        ]
         self.assertEqual(expected, [obj.to_json() for obj in objs])
 
 
@@ -177,12 +203,13 @@ class TestObjManager(tests.TestCase):
         manager.compute_referrers()
         objs = manager.objs
         self.assertEqual((), objs[1].referrers)
-        self.assertEqual([1], objs[2].referrers)
+        self.assertEqual([1, 8], objs[2].referrers)
         self.assertEqual([1, 3], objs[3].referrers)
         self.assertEqual([2, 3, 7], objs[4].referrers)
         self.assertEqual([2, 3, 7], objs[5].referrers)
         self.assertEqual([2], objs[6].referrers)
         self.assertEqual([2], objs[7].referrers)
+        self.assertEqual((), objs[8].referrers)
 
     def test_compute_total_size(self):
         manager = loader.load(_example_dump, show_prog=False)
@@ -195,6 +222,7 @@ class TestObjManager(tests.TestCase):
         self.assertEqual(12, objs[5].total_size)
         self.assertEqual(29, objs[6].total_size)
         self.assertEqual(44, objs[7].total_size)
+        self.assertEqual(257, objs[8].total_size)
 
     def test_compute_total_size_missing_ref(self):
         lines = list(_example_dump)
@@ -207,6 +235,7 @@ class TestObjManager(tests.TestCase):
 
     def test_remove_expensive_references(self):
         lines = list(_example_dump)
+        lines.pop(-1) # Remove the old module
         lines.append('{"address": 8, "type": "module", "size": 12'
                      ', "name": "mymod", "refs": [9]}')
         lines.append('{"address": 9, "type": "dict", "size": 124'
@@ -254,6 +283,25 @@ class TestObjManager(tests.TestCase):
         self.assertEqual([1], tpl.referrers)
         self.assertEqual([5, 6, 9, 6], mod.ref_list)
         self.assertFalse(15 in manager.objs)
+
+    def test_collapse_old_instance_dicts(self):
+        manager = loader.load(_old_instance_dump, show_prog=False)
+        instance = manager.objs[1]
+        self.assertEqual('instance', instance.type_str)
+        self.assertEqual(36, instance.size)
+        self.assertEqual([2, 3], instance.ref_list)
+        inst_dict = manager[3]
+        self.assertEqual(140, inst_dict.size)
+        self.assertEqual([4, 5, 6, 7], inst_dict.ref_list)
+        manager.compute_referrers()
+        manager.collapse_instance_dicts()
+        # The instance dict has been removed, and its references moved into the
+        # instance, further, the type has been updated from generic 'instance'
+        # to being 'OldStyle'.
+        self.assertFalse(3 in manager.objs)
+        self.assertEqual(176, instance.size)
+        self.assertEqual([4, 5, 6, 7, 2], instance.ref_list)
+        self.assertEqual('OldStyle', instance.type_str)
 
     def test_expand_refs_as_dict(self):
         # TODO: This test fails if simplejson is not installed, because the
