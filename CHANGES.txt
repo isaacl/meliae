@@ -1,0 +1,40 @@
+##############
+Meliae Changes
+##############
+
+.. contents:: List of Releases
+   :depth: 1
+
+Meliae 0.2.0 (not released yet)
+###############################
+
+:0.2.0: (not released yet)
+
+
+New Features
+************
+
+* The loader internals have been rewritten significantly. Instead of
+  storing a bunch of objects in a regular python dict, they are now
+  stored in a custom Pyrex collection, and proxy objects are created on
+  demand.  This means significantly improved memory usage. (roughly
+  2:1). (John Arbash Meinel)
+
+* The internals change also changes the interface a bit. When viewing
+  an object, a shorter display is given. One can use ``obj[offset]`` to
+  get the object at that reference, rather than the reference itself.
+  (so fewer indirections through the ObjManager). (John Arbash Meinel)
+
+* Now supports the ``__sizeof__`` interface introduced in python 2.6.
+  This allows a class (especially extension classes) to inform
+  Meliae/Python how many bytes it is consuming in memory.
+  (John Arbash Meinel)
+
+
+Bug Fixes
+*********
+
+* Some 
+
+
+.. vim: tw=71 ft=rst
