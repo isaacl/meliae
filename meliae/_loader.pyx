@@ -44,6 +44,7 @@ cdef extern from "Python.h":
     # void *stderr
 
 import gc
+from meliae import warn
 
 
 ctypedef struct RefList:
@@ -398,12 +399,15 @@ cdef class _MemObjectProxy:
             _free_ref_list(self._obj.children)
             self._obj.children = _list_to_ref_list(value)
 
-    # TODO: deprecated for clarity
     property referrers:
         def __get__(self):
+            warn.deprecated('Attribute .referrers deprecated.'
+                            ' Use .parents instead.')
             return self.parents
 
         def __set__(self, value):
+            warn.deprecated('Attribute .referrers deprecated.'
+                            ' Use .parents instead.')
             self.parents = value
 
     property parents:

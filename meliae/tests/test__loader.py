@@ -16,6 +16,7 @@
 
 from meliae import (
     _loader,
+    warn,
     tests,
     )
 
@@ -319,6 +320,29 @@ class Test_MemObjectProxy(tests.TestCase):
         mop255.parents = [1234567]
         self.assertEqual(1, mop255.num_parents)
         self.assertEqual([1234567], mop255.parents)
+
+    def test_referrers(self):
+        mop = self.moc.add(1234567, 'type', 256, children=[0, 255])
+        # Referrers is deprecated
+        logged = []
+        def log_warn(msg, klass, stacklevel=None):
+            logged.append((msg, klass, stacklevel))
+        old_func = warn.trap_warnings(log_warn)
+        try:
+            mop0 = self.moc[0]
+            self.assertEqual((), mop0.referrers)
+            self.assertEqual([('Attribute .referrers deprecated.'
+                               ' Use .parents instead.',
+                               DeprecationWarning, 3)
+                             ], logged)
+            mop0.referrers = [1234567]
+            self.assertEqual([('Attribute .referrers deprecated.'
+                               ' Use .parents instead.',
+                               DeprecationWarning, 3)
+                             ]*2, logged)
+            self.assertEqual([1234567], mop0.parents)
+        finally:
+            warn.trap_warnings(old_func)
 
     def test_parents(self):
         mop = self.moc.add(1234567, 'type', 256, children=[0, 255])
