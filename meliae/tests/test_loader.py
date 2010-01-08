@@ -1,4 +1,4 @@
-# Copyright (C) 2009 Canonical Ltd
+# Copyright (C) 2009, 2010 Canonical Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -169,12 +169,12 @@ class TestRemoveExpensiveReferences(tests.TestCase):
                      ', "refs": []}')
         source = lambda:loader.iter_objs(lines)
         mymod_dict = list(source())[8]
-        self.assertEqual([10, 11], mymod_dict.ref_list)
+        self.assertEqual([10, 11], mymod_dict.children)
         result = list(loader.remove_expensive_references(source))
         null_obj = result[0][1]
         self.assertEqual(0, null_obj.address)
         self.assertEqual('<ex-reference>', null_obj.type_str)
-        self.assertEqual([11, 0], result[9][1].ref_list)
+        self.assertEqual([11, 0], result[9][1].children)
 
 
 class TestMemObj(tests.TestCase):
@@ -198,18 +198,18 @@ class TestMemObj(tests.TestCase):
 
 class TestObjManager(tests.TestCase):
 
-    def test_compute_referrers(self):
+    def test_compute_parents(self):
         manager = loader.load(_example_dump, show_prog=False)
-        manager.compute_referrers()
+        manager.compute_parents()
         objs = manager.objs
-        self.assertEqual((), objs[1].referrers)
-        self.assertEqual([1, 8], objs[2].referrers)
-        self.assertEqual([1, 3], objs[3].referrers)
-        self.assertEqual([2, 3, 7], objs[4].referrers)
-        self.assertEqual([2, 3, 7], objs[5].referrers)
-        self.assertEqual([2], objs[6].referrers)
-        self.assertEqual([2], objs[7].referrers)
-        self.assertEqual((), objs[8].referrers)
+        self.assertEqual((), objs[1].parents)
+        self.assertEqual([1, 8], objs[2].parents)
+        self.assertEqual([1, 3], objs[3].parents)
+        self.assertEqual([2, 3, 7], objs[4].parents)
+        self.assertEqual([2, 3, 7], objs[5].parents)
+        self.assertEqual([2], objs[6].parents)
+        self.assertEqual([2], objs[7].parents)
+        self.assertEqual((), objs[8].parents)
 
     def test_compute_total_size(self):
         manager = loader.load(_example_dump, show_prog=False)
@@ -248,13 +248,13 @@ class TestObjManager(tests.TestCase):
                      ', "refs": []}')
         manager = loader.load(lines, show_prog=False)
         mymod_dict = manager.objs[9]
-        self.assertEqual([10, 11], mymod_dict.ref_list)
+        self.assertEqual([10, 11], mymod_dict.children)
         manager.remove_expensive_references()
         self.assertTrue(0 in manager.objs)
         null_obj = manager.objs[0]
         self.assertEqual(0, null_obj.address)
         self.assertEqual('<ex-reference>', null_obj.type_str)
-        self.assertEqual([11, 0], mymod_dict.ref_list)
+        self.assertEqual([11, 0], mymod_dict.children)
 
     def test_collapse_instance_dicts(self):
         manager = loader.load(_instance_dump, show_prog=False)
@@ -262,26 +262,26 @@ class TestObjManager(tests.TestCase):
         # @2 into the instance @1
         instance = manager.objs[1]
         self.assertEqual(32, instance.size)
-        self.assertEqual([2, 3], instance.ref_list)
+        self.assertEqual([2, 3], instance.children)
         inst_dict = manager.objs[2]
         self.assertEqual(140, inst_dict.size)
-        self.assertEqual([4, 5, 6, 7, 9, 10, 11, 12], inst_dict.ref_list)
+        self.assertEqual([4, 5, 6, 7, 9, 10, 11, 12], inst_dict.children)
         mod = manager.objs[14]
-        self.assertEqual([15], mod.ref_list)
+        self.assertEqual([15], mod.children)
         mod_dict = manager.objs[15]
-        self.assertEqual([5, 6, 9, 6], mod_dict.ref_list)
-        manager.compute_referrers()
+        self.assertEqual([5, 6, 9, 6], mod_dict.children)
+        manager.compute_parents()
         tpl = manager.objs[12]
-        self.assertEqual([2], tpl.referrers)
-        self.assertEqual([1], inst_dict.referrers)
-        self.assertEqual([14], mod_dict.referrers)
+        self.assertEqual([2], tpl.parents)
+        self.assertEqual([1], inst_dict.parents)
+        self.assertEqual([14], mod_dict.parents)
         manager.collapse_instance_dicts()
         # The instance dict has been removed
-        self.assertEqual([4, 5, 6, 7, 9, 10, 11, 12, 3], instance.ref_list)
+        self.assertEqual([4, 5, 6, 7, 9, 10, 11, 12, 3], instance.children)
         self.assertEqual(172, instance.size)
         self.assertFalse(2 in manager.objs)
-        self.assertEqual([1], tpl.referrers)
-        self.assertEqual([5, 6, 9, 6], mod.ref_list)
+        self.assertEqual([1], tpl.parents)
+        self.assertEqual([5, 6, 9, 6], mod.children)
         self.assertFalse(15 in manager.objs)
 
     def test_collapse_old_instance_dicts(self):
@@ -289,18 +289,18 @@ class TestObjManager(tests.TestCase):
         instance = manager.objs[1]
         self.assertEqual('instance', instance.type_str)
         self.assertEqual(36, instance.size)
-        self.assertEqual([2, 3], instance.ref_list)
+        self.assertEqual([2, 3], instance.children)
         inst_dict = manager[3]
         self.assertEqual(140, inst_dict.size)
-        self.assertEqual([4, 5, 6, 7], inst_dict.ref_list)
-        manager.compute_referrers()
+        self.assertEqual([4, 5, 6, 7], inst_dict.children)
+        manager.compute_parents()
         manager.collapse_instance_dicts()
         # The instance dict has been removed, and its references moved into the
         # instance, further, the type has been updated from generic 'instance'
         # to being 'OldStyle'.
         self.assertFalse(3 in manager.objs)
         self.assertEqual(176, instance.size)
-        self.assertEqual([4, 5, 6, 7, 2], instance.ref_list)
+        self.assertEqual([4, 5, 6, 7, 2], instance.children)
         self.assertEqual('OldStyle', instance.type_str)
 
     def test_expand_refs_as_dict(self):
@@ -310,7 +310,7 @@ class TestObjManager(tests.TestCase):
         manager = loader.load(_instance_dump, show_prog=False)
         as_dict = manager.refs_as_dict(manager[15])
         self.assertEqual({1: 'c', 'b': 'c'}, as_dict)
-        manager.compute_referrers()
+        manager.compute_parents()
         manager.collapse_instance_dicts()
         self.assertEqual({1: 'c', 'b': 'c'}, manager.refs_as_dict(manager[14]))
         self.assertEqual({'a': 1, 'c': manager[7], 'b': 'string',

@@ -1,4 +1,4 @@
-# Copyright (C) 2009 Canonical Ltd
+# Copyright (C) 2009, 2010 Canonical Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -65,7 +65,7 @@ def _from_json(cls, line, temp_cache=None):
     obj = cls(address=val['address'],
               type_str=str(val['type']),
               size=val['size'],
-              ref_list=val['refs'],
+              children=val['refs'],
               length=val.get('len', None),
               value=val.get('value', None),
               name=val.get('name', None))
@@ -93,7 +93,7 @@ def _from_line(cls, line, temp_cache=None):
     obj = cls(address=int(address),
               type_str=type_str,
               size=int(size),
-              ref_list=refs,
+              children=refs,
               length=length,
               value=value,
               name=name)
@@ -204,10 +204,10 @@ class ObjManager(object):
     def __getitem__(self, address):
         return self.objs[address]
 
-    def compute_referrers(self):
+    def compute_parents(self):
         """For each object, figure out who is referencing it."""
-        referrers = {}
-        get_refs = referrers.get
+        parents = {}
+        get_refs = parents.get
         total = len(self.objs)
         tlast = timer()-20
         enabled = gc.isenabled()
@@ -221,13 +221,13 @@ class ObjManager(object):
                     tnow = timer()
                     if tnow - tlast > 0.1:
                         tlast = tnow
-                        sys.stderr.write('compute referrers %8d / %8d        \r'
+                        sys.stderr.write('compute parents %8d / %8d        \r'
                                          % (idx, total))
                 address = obj.address
-                for ref in obj.ref_list:
+                for ref in obj.children:
                     refs = get_refs(ref, None)
                     # This is ugly, so it should be explained.
-                    # To save memory pressure, referrers will point to one of 4
+                    # To save memory pressure, parents will point to one of 4
                     # types.
                     #   1) A simple integer, representing a single referrer
                     #      this saves the allocation of a separate structure
@@ -235,7 +235,7 @@ class ObjManager(object):
                     #   2) A tuple, slightly more efficient than a list, but
                     #      requires creating a new tuple to 'add' an entry.
                     #   3) A list, as before, for things with lots of
-                    #      referrers, we use a regular list to let it grow.
+                    #      parents, we use a regular list to let it grow.
                     #   4) None, no references from this object
                     t = type(refs)
                     if refs is None:
@@ -252,33 +252,33 @@ class ObjManager(object):
                         refs.append(address)
                     else:
                         raise TypeError('unknown refs type: %s\n' % (t,))
-                    referrers[ref] = refs
+                    parents[ref] = refs
             if self.show_progress:
-                sys.stderr.write('compute referrers %8d / %8d        \r'
+                sys.stderr.write('compute parents %8d / %8d        \r'
                                  % (idx, total))
             for idx, obj in enumerate(self.objs.itervalues()):
                 if self.show_progress and idx & 0x3f == 0:
                     tnow = timer()
                     if tnow - tlast > 0.1:
                         tlast = tnow
-                        sys.stderr.write('set referrers %8d / %8d        \r'
+                        sys.stderr.write('set parents %8d / %8d        \r'
                                          % (idx, total))
                 try:
-                    refs = referrers.pop(obj.address)
+                    refs = parents.pop(obj.address)
                 except KeyError:
-                    obj.referrers = ()
+                    obj.parents = ()
                 else:
                     if refs is None:
-                        obj.referrers = ()
+                        obj.parents = ()
                     elif type(refs) in (int, long):
-                        obj.referrers = (refs,)
+                        obj.parents = (refs,)
                     else:
-                        obj.referrers = refs
+                        obj.parents = refs
         finally:
             if enabled:
                 gc.enable()
         if self.show_progress:
-            sys.stderr.write('set referrers %8d / %8d        \n'
+            sys.stderr.write('set parents %8d / %8d        \n'
                              % (idx, total))
 
     def remove_expensive_references(self):
@@ -302,7 +302,7 @@ class ObjManager(object):
             continue
 
     def _compute_total_size(self, obj):
-        pending_descendents = list(obj.ref_list)
+        pending_descendents = list(obj.children)
         seen = _intset.IDSet()
         seen.add(obj.address)
         total_size = obj.size
@@ -318,7 +318,7 @@ class ObjManager(object):
             # everything. So for now, when we encounter them, don't add
             # their references
             total_size += next_obj.size
-            pending_descendents.extend([ref for ref in next_obj.ref_list
+            pending_descendents.extend([ref for ref in next_obj.children
                                              if ref not in seen])
         ## count = len(seen)
         ## # This single object references more than 10% of all objects, and
@@ -363,7 +363,7 @@ class ObjManager(object):
     def get_all(self, type_str):
         """Return all objects that match a given type."""
         all = [o for o in self.objs.itervalues() if o.type_str == type_str]
-        all.sort(key=lambda x:(x.size, len(x), x.num_referrers),
+        all.sort(key=lambda x:(x.size, len(x), x.num_parents),
                  reverse=True)
         return all
 
@@ -377,11 +377,6 @@ class ObjManager(object):
 
         So we collapse those references back into the object, and grow its
         'size' at the same time.
-
-        :param update_referrers: When removing the instance's __dict__
-            variable, update all references. If there are lots of things to
-            update, it is often faster to collapse everything, and then update
-            after-the-fact.
         """
         # The instances I'm focusing on have a custom type name, and every
         # instance has 2 pointers. The first is to __dict__, and the second is
@@ -427,14 +422,14 @@ class ObjManager(object):
                 else:
                     continue
                 extra_refs = [type_obj.address]
-            if (dict_obj.num_referrers != 1
-                or dict_obj.referrers[0] != address):
+            if (dict_obj.num_parents != 1
+                or dict_obj.parents[0] != address):
                 continue
             collapsed += 1
             # We found an instance \o/
-            new_refs = list(dict_obj.ref_list)
+            new_refs = list(dict_obj.children)
             new_refs.extend(extra_refs)
-            obj.ref_list = new_refs
+            obj.children = new_refs
             obj.size = obj.size + dict_obj.size
             obj.total_size = 0
             if obj.type_str == 'instance':
@@ -446,7 +441,7 @@ class ObjManager(object):
             sys.stderr.write('checked %8d / %8d collapsed %8d    \n'
                              % (item_idx, total, collapsed))
         if collapsed:
-            self.compute_referrers()
+            self.compute_parents()
 
     def refs_as_dict(self, obj):
         """Expand the ref list considering it to be a 'dict' structure.
@@ -462,8 +457,8 @@ class ObjManager(object):
     def refs_as_list(self, obj):
         """Expand the ref list, considering it to be a list structure."""
         as_list = []
-        ref_list = obj.ref_list
-        for addr in ref_list:
+        children = obj.children
+        for addr in children:
             val = self.objs[addr]
             if val.type_str == 'bool':
                 val = (val.value == 'True')
@@ -646,27 +641,27 @@ def remove_expensive_references(source, total_objs=0, show_progress=False):
             #   func_code, func_globals, func_module, func_defaults,
             #   func_doc, func_name, func_dict, func_closure
             # We want to remove the reference to globals and module
-            refs = list(obj.ref_list)
-            obj.ref_list = refs[:1] + refs[3:] + [0]
+            refs = list(obj.children)
+            obj.children = refs[:1] + refs[3:] + [0]
             yield (True, obj)
             continue
         elif obj.type_str == '_LRUNode':
             # We remove the 'sideways' references
-            obj.ref_list = [ref for ref in obj.ref_list
+            obj.children = [ref for ref in obj.children
                                  if ref not in lru_objs]
             yield (True, obj)
             continue
-        for ref in obj.ref_list:
+        for ref in obj.children:
             if ref in noref_objs:
                 break
         else:
             # No bad references, keep going
             yield (False, obj)
             continue
-        new_ref_list = [ref for ref in obj.ref_list
+        new_ref_list = [ref for ref in obj.children
                              if ref not in noref_objs]
         new_ref_list.append(0)
-        obj.ref_list = new_ref_list
+        obj.children = new_ref_list
         yield (True, obj)
     if show_progress:
         sys.stderr.write('removed %d expensive refs from %d objs%s\n'

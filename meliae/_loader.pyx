@@ -164,7 +164,7 @@ cdef struct _MemObject:
     PyObject *type_str
     # Consider making this unsigned long
     long size
-    RefList *ref_list
+    RefList *children
     # Removed for now, since it hasn't proven useful
     # int length
     PyObject *value
@@ -180,7 +180,7 @@ cdef struct _MemObject:
     PyObject *proxy
 
 
-cdef _MemObject *_new_mem_object(address, type_str, size, ref_list,
+cdef _MemObject *_new_mem_object(address, type_str, size, children,
                              value, name, parent_list, total_size) except NULL:
     cdef _MemObject *new_entry
     cdef PyObject *addr
@@ -195,7 +195,7 @@ cdef _MemObject *_new_mem_object(address, type_str, size, ref_list,
     new_entry.type_str = <PyObject *>type_str
     Py_INCREF(new_entry.type_str)
     new_entry.size = size
-    new_entry.ref_list = _list_to_ref_list(ref_list)
+    new_entry.children = _list_to_ref_list(children)
     # TODO: Was found wanting and removed
     # if length is None:
     #     new_entry.length = -1
@@ -225,8 +225,8 @@ cdef int _free_mem_object(_MemObject *cur) except -1:
     cur.address = NULL
     Py_XDECREF(cur.type_str)
     cur.type_str = NULL
-    _free_ref_list(cur.ref_list)
-    cur.ref_list = NULL
+    _free_ref_list(cur.children)
+    cur.children = NULL
     Py_XDECREF(cur.value)
     cur.value = NULL
     # Py_XDECREF(cur.name)
@@ -246,7 +246,7 @@ cdef class MemObjectCollection
 cdef class _MemObjectProxy
 
 
-def _MemObjectProxy_from_args(address, type_str, size, ref_list=(), length=0,
+def _MemObjectProxy_from_args(address, type_str, size, children=(), length=0,
                               value=None, name=None, parent_list=(),
                               total_size=0):
     """Create a standalone _MemObjectProxy instance.
@@ -257,7 +257,7 @@ def _MemObjectProxy_from_args(address, type_str, size, ref_list=(), length=0,
     cdef _MemObject *new_entry
     cdef _MemObjectProxy proxy
 
-    new_entry = _new_mem_object(address, type_str, size, ref_list,
+    new_entry = _new_mem_object(address, type_str, size, children,
                                 value, name, parent_list, total_size)
     proxy = _MemObjectProxy(None)
     proxy._obj = new_entry
@@ -283,7 +283,7 @@ cdef class _MemObjectProxy:
     :ivar size: The number of bytes consumed for just this object. So for a
         dict, this would be the basic_size + the size of the allocated array to
         store the reference pointers
-    :ivar ref_list: A list of items referenced from this object
+    :ivar children: A list of items referenced from this object
     :ivar num_refs: Count of references, you can also use len()
     :ivar value: A PyObject representing the Value for this object. (For
         strings, it is the first 100 bytes, it may be None if we have no value,
@@ -369,9 +369,9 @@ cdef class _MemObjectProxy:
             self._obj.total_size = value
 
     def __len__(self):
-        if self._obj.ref_list == NULL:
+        if self._obj.children == NULL:
             return 0
-        return self._obj.ref_list.size
+        return self._obj.children.size
 
     property num_refs:
         def __get__(self):
@@ -381,22 +381,22 @@ cdef class _MemObjectProxy:
         cdef long i
         _set_default_ptr(cache, &self._obj.address)
         _set_default_ptr(cache, &self._obj.type_str)
-        if self._obj.ref_list != NULL:
-            for i from 0 <= i < self._obj.ref_list.size:
-                _set_default_ptr(cache, &self._obj.ref_list.refs[i])
+        if self._obj.children != NULL:
+            for i from 0 <= i < self._obj.children.size:
+                _set_default_ptr(cache, &self._obj.children.refs[i])
         if self._obj.parent_list != NULL:
             for i from 0 <= i < self._obj.parent_list.size:
                 _set_default_ptr(cache, &self._obj.parent_list.refs[i])
 
 
-    property ref_list:
+    property children:
         """The list of objects referenced by this object."""
         def __get__(self):
-            return _ref_list_to_list(self._obj.ref_list)
+            return _ref_list_to_list(self._obj.children)
 
         def __set__(self, value):
-            _free_ref_list(self._obj.ref_list)
-            self._obj.ref_list = _list_to_ref_list(value)
+            _free_ref_list(self._obj.children)
+            self._obj.children = _list_to_ref_list(value)
 
     # TODO: deprecated for clarity
     property referrers:
@@ -436,13 +436,13 @@ cdef class _MemObjectProxy:
     def __getitem__(self, offset):
         cdef long off
 
-        if self._obj.ref_list == NULL:
+        if self._obj.children == NULL:
             raise IndexError('%s has no references' % (self,))
         off = offset
-        if off >= self._obj.ref_list.size:
+        if off >= self._obj.children.size:
             raise IndexError('%s has only %d (not %d) references'
-                             % (self, self._obj.ref_list.size, offset))
-        address = <object>self._obj.ref_list.refs[off]
+                             % (self, self._obj.children.size, offset))
+        address = <object>self._obj.children.refs[off]
         try:
             return self.collection[address]
         except KeyError:
@@ -451,10 +451,10 @@ cdef class _MemObjectProxy:
             raise
 
     def __repr__(self):
-        if self._obj.ref_list == NULL:
+        if self._obj.children == NULL:
             refs = ''
         else:
-            refs = ' %drefs' % (self._obj.ref_list.size,)
+            refs = ' %drefs' % (self._obj.children.size,)
         if self._obj.parent_list == NULL:
             parent_str = ''
         else:
@@ -485,7 +485,7 @@ cdef class _MemObjectProxy:
     def to_json(self):
         """Convert this back into json."""
         refs = []
-        for ref in sorted(self.ref_list):
+        for ref in sorted(self.children):
             refs.append(str(ref))
         # Note: We've lost the info about whether this was a value or a name
         #       We've also lost the 'length' field.
@@ -508,13 +508,13 @@ cdef class _MemObjectProxy:
         tries to expand that as much as possible.
         """
         as_dict = {}
-        ref_list = self.ref_list
+        children = self.children
         if self.type_str not in ('dict', 'module'):
             # Instance dicts end with a 'type' reference
-            ref_list = ref_list[:-1]
-        for idx in xrange(0, len(ref_list), 2):
-            key = self.collection[ref_list[idx]]
-            val = self.collection[ref_list[idx+1]]
+            children = children[:-1]
+        for idx in xrange(0, len(children), 2):
+            key = self.collection[children[idx]]
+            val = self.collection[children[idx+1]]
             if key.value is not None:
                 key = key.value
             # TODO: We should consider recursing if val is a 'known' type, such
@@ -738,7 +738,7 @@ cdef class MemObjectCollection:
         return new_size
 
 
-    def add(self, address, type_str, size, ref_list=(), length=0,
+    def add(self, address, type_str, size, children=(), length=0,
             value=None, name=None, parent_list=(), total_size=0):
         """Add a new MemObject to this collection."""
         cdef _MemObject **slot, *new_entry
@@ -751,7 +751,7 @@ cdef class MemObjectCollection:
             assert False, "We don't support overwrite yet."
         # TODO: These are fairy small and more subject to churn, maybe we
         #       should be using PyObj_Malloc instead...
-        new_entry = _new_mem_object(address, type_str, size, ref_list,
+        new_entry = _new_mem_object(address, type_str, size, children,
                                     value, name, parent_list, total_size)
 
         if slot[0] == NULL:

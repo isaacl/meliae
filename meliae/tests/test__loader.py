@@ -1,4 +1,4 @@
-# Copyright (C) 2009 Canonical Ltd
+# Copyright (C) 2009, 2010 Canonical Ltd
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -245,7 +245,6 @@ class Test_MemObjectProxy(tests.TestCase):
         mop = self.moc.add(addr, 'my ' + ' type', 256)
         mop._intern_from_cache(cache)
         self.assertTrue(addr in cache)
-        # TODO: ref_list and referrers
         self.assertTrue(mop.address is addr)
         self.assertTrue(cache[addr] is addr)
         t = cache['my  type']
@@ -256,38 +255,38 @@ class Test_MemObjectProxy(tests.TestCase):
         cache[addr876543] = addr876543
         addr654321 = 654321
         cache[addr654321] = addr654321
-        mop.ref_list = [876542+1, 654320+1]
-        mop.referrers = [876542+1, 654320+1]
+        mop.children = [876542+1, 654320+1]
+        mop.parents = [876542+1, 654320+1]
         self.assertFalse(mop.address is addr)
         self.assertFalse(mop.type_str is t)
-        rl = mop.ref_list
+        rl = mop.children
         self.assertFalse(rl[0] is addr876543)
         self.assertFalse(rl[1] is addr654321)
-        rfrs = mop.referrers
+        rfrs = mop.parents
         self.assertFalse(rl[0] is addr876543)
         self.assertFalse(rl[1] is addr654321)
         mop._intern_from_cache(cache)
         self.assertTrue(mop.address is addr)
         self.assertTrue(mop.type_str is t)
-        rl = mop.ref_list
+        rl = mop.children
         self.assertTrue(rl[0] is addr876543)
         self.assertTrue(rl[1] is addr654321)
-        rfrs = mop.referrers
+        rfrs = mop.parents
         self.assertTrue(rfrs[0] is addr876543)
         self.assertTrue(rfrs[1] is addr654321)
 
-    def test_ref_list(self):
-        mop = self.moc.add(1234567, 'type', 256, ref_list=[1, 2, 3])
+    def test_children(self):
+        mop = self.moc.add(1234567, 'type', 256, children=[1, 2, 3])
         self.assertEqual(3, len(mop))
         self.assertEqual(3, mop.num_refs)
-        self.assertEqual([1, 2, 3], mop.ref_list)
-        mop.ref_list = [87654321, 23456]
-        self.assertEqual([87654321, 23456], mop.ref_list)
+        self.assertEqual([1, 2, 3], mop.children)
+        mop.children = [87654321, 23456]
+        self.assertEqual([87654321, 23456], mop.children)
         self.assertEqual(2, len(mop))
         self.assertEqual(2, mop.num_refs)
 
     def test__getitem__(self):
-        mop = self.moc.add(1234567, 'type', 256, ref_list=[0, 255])
+        mop = self.moc.add(1234567, 'type', 256, children=[0, 255])
         self.assertEqual(2, len(mop))
         self.assertEqual(2, len(list(mop)))
         mop0 = mop[0]
@@ -307,7 +306,7 @@ class Test_MemObjectProxy(tests.TestCase):
         self.assertEqual(2**31+1, mop.total_size)
 
     def test_parents(self):
-        mop = self.moc.add(1234567, 'type', 256, ref_list=[0, 255])
+        mop = self.moc.add(1234567, 'type', 256, children=[0, 255])
         mop0 = self.moc[0]
         self.assertEqual((), mop0.parents)
         self.assertEqual(0, mop0.num_parents)
@@ -321,20 +320,20 @@ class Test_MemObjectProxy(tests.TestCase):
         self.assertEqual(1, mop255.num_parents)
         self.assertEqual([1234567], mop255.parents)
 
-    def test_referrers(self):
-        mop = self.moc.add(1234567, 'type', 256, ref_list=[0, 255])
+    def test_parents(self):
+        mop = self.moc.add(1234567, 'type', 256, children=[0, 255])
         mop0 = self.moc[0]
-        self.assertEqual((), mop0.referrers)
-        self.assertEqual(0, mop0.num_referrers)
+        self.assertEqual((), mop0.parents)
+        self.assertEqual(0, mop0.num_parents)
         mop255 = self.moc[255]
-        self.assertEqual((), mop255.referrers)
-        self.assertEqual(0, mop255.num_referrers)
-        mop0.referrers = [1234567]
-        self.assertEqual(1, mop0.num_referrers)
-        self.assertEqual([1234567], mop0.referrers)
-        mop255.referrers = [1234567]
-        self.assertEqual(1, mop255.num_referrers)
-        self.assertEqual([1234567], mop255.referrers)
+        self.assertEqual((), mop255.parents)
+        self.assertEqual(0, mop255.num_parents)
+        mop0.parents = [1234567]
+        self.assertEqual(1, mop0.num_parents)
+        self.assertEqual([1234567], mop0.parents)
+        mop255.parents = [1234567]
+        self.assertEqual(1, mop255.num_parents)
+        self.assertEqual([1234567], mop255.parents)
 
     def test__repr__(self):
         mop = self.moc.add(1234, 'str', 24)
@@ -366,11 +365,11 @@ class Test_MemObjectProxy(tests.TestCase):
     def test_expand_refs_as_dict(self):
         self.moc.add(1, 'str', 25, value='a')
         self.moc.add(2, 'int', 12, value=1)
-        mop = self.moc.add(3, 'dict', 140, ref_list=[1, 2])
+        mop = self.moc.add(3, 'dict', 140, children=[1, 2])
         as_dict = mop.refs_as_dict()
         self.assertEqual({'a': 1}, mop.refs_as_dict())
         # It should even work if there is a 'trailing' entry, as after
         # collapse, instances have the dict inline, and end with the reference
         # to the type
-        mop = self.moc.add(4, 'MyClass', 156, ref_list=[2, 1, 8])
+        mop = self.moc.add(4, 'MyClass', 156, children=[2, 1, 8])
         self.assertEqual({1: 'a'}, mop.refs_as_dict())
