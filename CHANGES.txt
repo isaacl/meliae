@@ -5,6 +5,12 @@ Meliae Changes
 .. contents:: List of Releases
    :depth: 1
 
+Meliae 0.2.1 (not released yet)
+###############################
+
+:0.2.0: (not released yet)
+
+
 Meliae 0.2.0
 ############
 
