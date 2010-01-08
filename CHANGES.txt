@@ -5,10 +5,13 @@ Meliae Changes
 .. contents:: List of Releases
    :depth: 1
 
-Meliae 0.2.0 (not released yet)
-###############################
+Meliae 0.2.0
+############
 
-:0.2.0: (not released yet)
+:0.2.0: 2009-01-08
+
+A fairly major reworking of the internals, provides significant memory
+savings and easier navigation of the object graph.
 
 
 New Features
@@ -29,6 +32,14 @@ New Features
   This allows a class (especially extension classes) to inform
   Meliae/Python how many bytes it is consuming in memory.
   (John Arbash Meinel)
+
+* Memory objects now use a ``.children`` and ``.parents`` notation,
+  rather than ``.ref_list`` and ``.referrers``. For one, this makes it
+  clearer as 'referred to' and 'referred from' is a bit tricky. We also
+  now have ``.c`` and ``.p`` which return a list of Memory objects,
+  rather than just a list of addresses. This makes it very quick to
+  move around. Especially with ``.refs_as_dict`` and other such
+  niceties. (John Arbash Meinel)
 
 
 Bug Fixes

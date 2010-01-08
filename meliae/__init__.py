@@ -1,4 +1,4 @@
-# Copyright (C) 2009 Canonical Ltd
+# Copyright (C) 2009, 2010 Canonical Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -14,6 +14,6 @@
 
 """A simple way to dump memory consumption of a running python program."""
 
-version_info = (0, 2, 0, 'dev', 0)
+version_info = (0, 2, 0, 'final', 0)
 __version__ = '.'.join(map(str, version_info))
 
