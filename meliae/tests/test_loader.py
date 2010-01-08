@@ -24,6 +24,7 @@ from meliae import (
     loader,
     scanner,
     tests,
+    warn,
     )
 
 
@@ -202,6 +203,31 @@ class TestObjManager(tests.TestCase):
         manager = loader.load(_example_dump, show_prog=False)
         manager.compute_parents()
         objs = manager.objs
+        self.assertEqual((), objs[1].parents)
+        self.assertEqual([1, 8], objs[2].parents)
+        self.assertEqual([1, 3], objs[3].parents)
+        self.assertEqual([2, 3, 7], objs[4].parents)
+        self.assertEqual([2, 3, 7], objs[5].parents)
+        self.assertEqual([2], objs[6].parents)
+        self.assertEqual([2], objs[7].parents)
+        self.assertEqual((), objs[8].parents)
+
+    def test_compute_referrers(self):
+        # Deprecated
+        logged = []
+        def log_warn(msg, klass, stacklevel=None):
+            logged.append((msg, klass, stacklevel))
+        old_func = warn.trap_warnings(log_warn)
+        try:
+            manager = loader.load(_example_dump, show_prog=False)
+            manager.compute_referrers()
+            self.assertEqual([('.compute_referrers is deprecated.'
+                               ' Use .compute_parents instead.',
+                               DeprecationWarning, 3),
+                             ], logged)
+            objs = manager.objs
+        finally:
+            warn.trap_warnings(old_func)
         self.assertEqual((), objs[1].parents)
         self.assertEqual([1, 8], objs[2].parents)
         self.assertEqual([1, 3], objs[3].parents)

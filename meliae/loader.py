@@ -33,6 +33,7 @@ from meliae import (
     files,
     _intset,
     _loader,
+    warn,
     )
 
 
@@ -203,6 +204,12 @@ class ObjManager(object):
 
     def __getitem__(self, address):
         return self.objs[address]
+
+    def compute_referrers(self):
+        """Deprecated, use compute_parents instead."""
+        warn.deprecated('.compute_referrers is deprecated.'
+                        ' Use .compute_parents instead.')
+        return self.compute_parents()
 
     def compute_parents(self):
         """For each object, figure out who is referencing it."""
