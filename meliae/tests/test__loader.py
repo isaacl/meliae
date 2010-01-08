@@ -279,12 +279,39 @@ class Test_MemObjectProxy(tests.TestCase):
     def test_children(self):
         mop = self.moc.add(1234567, 'type', 256, children=[1, 2, 3])
         self.assertEqual(3, len(mop))
-        self.assertEqual(3, mop.num_refs)
         self.assertEqual([1, 2, 3], mop.children)
         mop.children = [87654321, 23456]
         self.assertEqual([87654321, 23456], mop.children)
         self.assertEqual(2, len(mop))
-        self.assertEqual(2, mop.num_refs)
+
+    def test_ref_list(self):
+        # Deprecated
+        logged = []
+        def log_warn(msg, klass, stacklevel=None):
+            logged.append((msg, klass, stacklevel))
+        old_func = warn.trap_warnings(log_warn)
+        try:
+            mop = self.moc.add(1234567, 'type', 256, children=[1, 2, 3])
+            self.assertEqual(3, len(mop))
+            self.assertEqual(3, mop.num_refs)
+            self.assertEqual([('Attribute .num_refs deprecated.'
+                               ' Use len() instead.', DeprecationWarning, 3),
+                             ], logged)
+            del logged[:]
+            self.assertEqual([1, 2, 3], mop.ref_list)
+            self.assertEqual([('Attribute .ref_list deprecated.'
+                               ' Use .children instead.',
+                               DeprecationWarning, 3),
+                             ], logged)
+            mop.ref_list = [87654321, 23456]
+            self.assertEqual([('Attribute .ref_list deprecated.'
+                               ' Use .children instead.',
+                               DeprecationWarning, 3),
+                             ]*2, logged)
+            self.assertEqual([87654321, 23456], mop.children)
+            self.assertEqual(2, len(mop))
+        finally:
+            warn.trap_warnings(old_func)
 
     def test__getitem__(self):
         mop = self.moc.add(1234567, 'type', 256, children=[0, 255])
@@ -341,6 +368,12 @@ class Test_MemObjectProxy(tests.TestCase):
                                DeprecationWarning, 3)
                              ]*2, logged)
             self.assertEqual([1234567], mop0.parents)
+            del logged[:]
+            self.assertEqual(1, mop0.num_referrers)
+            self.assertEqual([('Attribute .num_referrers deprecated.'
+                               ' Use .num_parents instead.',
+                               DeprecationWarning, 3)
+                             ], logged)
         finally:
             warn.trap_warnings(old_func)
 

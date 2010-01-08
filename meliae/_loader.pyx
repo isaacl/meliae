@@ -376,6 +376,8 @@ cdef class _MemObjectProxy:
 
     property num_refs:
         def __get__(self):
+            warn.deprecated('Attribute .num_refs deprecated.'
+                            ' Use len() instead.')
             return self.__len__()
 
     def _intern_from_cache(self, cache):
@@ -399,7 +401,26 @@ cdef class _MemObjectProxy:
             _free_ref_list(self._obj.children)
             self._obj.children = _list_to_ref_list(value)
 
+    property ref_list:
+        """The list of objects referenced by this object.
+
+        Deprecated, use .children instead.
+        """
+        def __get__(self):
+            warn.deprecated('Attribute .ref_list deprecated.'
+                            ' Use .children instead.')
+            return self.children
+
+        def __set__(self, val):
+            warn.deprecated('Attribute .ref_list deprecated.'
+                            ' Use .children instead.')
+            self.children = val
+
     property referrers:
+        """Objects which refer to this object.
+
+        Deprecated, use .parents instead.
+        """
         def __get__(self):
             warn.deprecated('Attribute .referrers deprecated.'
                             ' Use .parents instead.')
@@ -422,10 +443,11 @@ cdef class _MemObjectProxy:
             _free_ref_list(self._obj.parent_list)
             self._obj.parent_list = _list_to_ref_list(value)
 
-    # TODO: deprecated for clarity
     property num_referrers:
         """The length of the parents list."""
         def __get__(self):
+            warn.deprecated('Attribute .num_referrers deprecated.'
+                            ' Use .num_parents instead.')
             if self._obj.parent_list == NULL:
                 return 0
             return self._obj.parent_list.size
