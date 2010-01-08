@@ -165,7 +165,7 @@ cdef struct _MemObject:
     PyObject *type_str
     # Consider making this unsigned long
     long size
-    RefList *children
+    RefList *child_list
     # Removed for now, since it hasn't proven useful
     # int length
     PyObject *value
@@ -196,7 +196,7 @@ cdef _MemObject *_new_mem_object(address, type_str, size, children,
     new_entry.type_str = <PyObject *>type_str
     Py_INCREF(new_entry.type_str)
     new_entry.size = size
-    new_entry.children = _list_to_ref_list(children)
+    new_entry.child_list = _list_to_ref_list(children)
     # TODO: Was found wanting and removed
     # if length is None:
     #     new_entry.length = -1
@@ -226,8 +226,8 @@ cdef int _free_mem_object(_MemObject *cur) except -1:
     cur.address = NULL
     Py_XDECREF(cur.type_str)
     cur.type_str = NULL
-    _free_ref_list(cur.children)
-    cur.children = NULL
+    _free_ref_list(cur.child_list)
+    cur.child_list = NULL
     Py_XDECREF(cur.value)
     cur.value = NULL
     # Py_XDECREF(cur.name)
@@ -370,9 +370,9 @@ cdef class _MemObjectProxy:
             self._obj.total_size = value
 
     def __len__(self):
-        if self._obj.children == NULL:
+        if self._obj.child_list == NULL:
             return 0
-        return self._obj.children.size
+        return self._obj.child_list.size
 
     property num_refs:
         def __get__(self):
@@ -384,9 +384,9 @@ cdef class _MemObjectProxy:
         cdef long i
         _set_default_ptr(cache, &self._obj.address)
         _set_default_ptr(cache, &self._obj.type_str)
-        if self._obj.children != NULL:
-            for i from 0 <= i < self._obj.children.size:
-                _set_default_ptr(cache, &self._obj.children.refs[i])
+        if self._obj.child_list != NULL:
+            for i from 0 <= i < self._obj.child_list.size:
+                _set_default_ptr(cache, &self._obj.child_list.refs[i])
         if self._obj.parent_list != NULL:
             for i from 0 <= i < self._obj.parent_list.size:
                 _set_default_ptr(cache, &self._obj.parent_list.refs[i])
@@ -395,11 +395,11 @@ cdef class _MemObjectProxy:
     property children:
         """The list of objects referenced by this object."""
         def __get__(self):
-            return _ref_list_to_list(self._obj.children)
+            return _ref_list_to_list(self._obj.child_list)
 
         def __set__(self, value):
-            _free_ref_list(self._obj.children)
-            self._obj.children = _list_to_ref_list(value)
+            _free_ref_list(self._obj.child_list)
+            self._obj.child_list = _list_to_ref_list(value)
 
     property ref_list:
         """The list of objects referenced by this object.
@@ -462,13 +462,13 @@ cdef class _MemObjectProxy:
     def __getitem__(self, offset):
         cdef long off
 
-        if self._obj.children == NULL:
+        if self._obj.child_list == NULL:
             raise IndexError('%s has no references' % (self,))
         off = offset
-        if off >= self._obj.children.size:
+        if off >= self._obj.child_list.size:
             raise IndexError('%s has only %d (not %d) references'
-                             % (self, self._obj.children.size, offset))
-        address = <object>self._obj.children.refs[off]
+                             % (self, self._obj.child_list.size, offset))
+        address = <object>self._obj.child_list.refs[off]
         try:
             return self.collection[address]
         except KeyError:
@@ -476,11 +476,43 @@ cdef class _MemObjectProxy:
             #       'no-such-object' proxy would be nicer than returning nothing
             raise
 
+    property c:
+        """The list of children objects as objects (not references)."""
+        def __get__(self):
+            cdef long pos
+
+            result = []
+            if self._obj.child_list == NULL:
+                return result
+            for pos from 0 <= pos < self._obj.child_list.size:
+                address = <object>self._obj.child_list.refs[pos]
+                obj = self.collection[address]
+                result.append(obj)
+            return result
+
+    property p:
+        """The list of parent objects as objects (not references)."""
+        def __get__(self):
+            cdef long pos
+
+            result = []
+            if self._obj.parent_list == NULL:
+                return result
+            for pos from 0 <= pos < self._obj.parent_list.size:
+                address = <object>self._obj.parent_list.refs[pos]
+                try:
+                    obj = self.collection[address]
+                except KeyError:
+                    # We should probably create an "unknown object" type
+                    raise
+                result.append(obj)
+            return result
+
     def __repr__(self):
-        if self._obj.children == NULL:
+        if self._obj.child_list == NULL:
             refs = ''
         else:
-            refs = ' %drefs' % (self._obj.children.size,)
+            refs = ' %drefs' % (self._obj.child_list.size,)
         if self._obj.parent_list == NULL:
             parent_str = ''
         else:

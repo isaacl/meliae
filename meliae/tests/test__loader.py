@@ -284,6 +284,15 @@ class Test_MemObjectProxy(tests.TestCase):
         self.assertEqual([87654321, 23456], mop.children)
         self.assertEqual(2, len(mop))
 
+    def test_c(self):
+        mop = self.moc.add(1234567, 'type', 256, children=[0, 255])
+        mop0 = self.moc[0]
+        self.assertEqual([], mop0.c)
+        c = mop.c
+        self.assertEqual(2, len(c))
+        self.assertEqual(0, c[0].address)
+        self.assertEqual(255, c[1].address)
+
     def test_ref_list(self):
         # Deprecated
         logged = []
@@ -347,6 +356,15 @@ class Test_MemObjectProxy(tests.TestCase):
         mop255.parents = [1234567]
         self.assertEqual(1, mop255.num_parents)
         self.assertEqual([1234567], mop255.parents)
+
+    def test_p(self):
+        mop = self.moc.add(1234567, 'type', 256, children=[0, 255])
+        mop0 = self.moc[0]
+        self.assertEqual([], mop0.p)
+        mop0.parents = [1234567]
+        p = mop0.p
+        self.assertEqual(1, len(p))
+        self.assertEqual(mop, p[0])
 
     def test_referrers(self):
         mop = self.moc.add(1234567, 'type', 256, children=[0, 255])
