@@ -1,4 +1,4 @@
-# Copyright (C) 2009 Canonical Ltd
+# Copyright (C) 2009, 2010 Canonical Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -309,10 +309,10 @@ cdef class _MemObjectProxy:
             if self._obj.proxy == <PyObject *>self:
                 # This object is going away, remove the reference
                 self._obj.proxy = NULL
-            else:
-                fprintf(stderr, "obj at address %x referenced"
-                    " a proxy that was not self\n",
-                    <int><object>self._obj.address)
+            # else:
+            #     fprintf(stderr, "obj at address %x referenced"
+            #         " a proxy that was not self\n",
+            #         <int><object>self._obj.address)
         if self._managed_obj != NULL:
             _free_mem_object(self._managed_obj)
             self._managed_obj = NULL

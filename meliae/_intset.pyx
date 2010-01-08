@@ -1,4 +1,4 @@
-# Copyright (C) 2009 Canonical Ltd
+# Copyright (C) 2009, 2010 Canonical Ltd
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -25,7 +25,7 @@ cdef extern from *:
     void memset(void *, int, size_t)
 
 
-ctypedef size_t int_type
+ctypedef Py_ssize_t int_type
 cdef int_type _singleton1, _singleton2
 # _singleton1 is the 'no value present' value
 # _singleton2 is the 'value deleted' value, which has us keep searching
