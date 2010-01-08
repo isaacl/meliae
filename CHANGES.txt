@@ -8,7 +8,7 @@ Meliae Changes
 Meliae 0.2.0
 ############
 
-:0.2.0: 2009-01-08
+:0.2.0: 2010-01-08
 
 A fairly major reworking of the internals, provides significant memory
 savings and easier navigation of the object graph.
