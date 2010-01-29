@@ -112,8 +112,10 @@ cdef class IntSet:
             perturb = perturb >> 5 # PERTURB_SHIFT
 
     def __contains__(self, val):
-        cdef int_type c_val, *entry
-        c_val = val
+        return self._contains(<int_type>val)
+
+    cdef object _contains(self, int_type c_val):
+        cdef int_type *entry
         if c_val == _singleton1:
             if self._has_singleton & 0x01:
                 return True
@@ -200,6 +202,7 @@ cdef class IntSet:
             % (c_val, entry[0]))
 
     def add(self, val):
+        """Add a new entry to the set."""
         self._add(val)
 
 
@@ -210,8 +213,21 @@ cdef class IDSet(IntSet):
     addresses tend to be aligned on 16-byte boundaries (occasionally 8-byte,
     and even more rarely on 4-byte), as such the standard hash lookup has more
     collisions than desired.
+
+    Also, addresses are considered to be unsigned longs by python, but
+    Py_ssize_t is a signed long. Just treating it normally causes us to get a
+    value overflow on 32-bits if the highest bit is set.
     """
 
+    def add(self, val):
+        self._add(<int_type>(<unsigned long>val))
+
+    def __contains__(self, val):
+        return self._contains(<int_type>(<unsigned long>val))
+
+    # TODO: Consider that the code would probably be simpler if we just
+    # bit-shifted before passing the value to self._add and self._contains,
+    # rather than re-implementing _lookup here.
     cdef int_type *_lookup(self, int_type c_val) except NULL:
         """Taken from the set() algorithm."""
         cdef size_t offset, perturb
