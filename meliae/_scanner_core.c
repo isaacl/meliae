@@ -1,4 +1,4 @@
-/* Copyright (C) 2009 Canonical Ltd
+/* Copyright (C) 2009, 2010 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -397,6 +397,7 @@ _dump_object_to_ref_info(struct ref_info *info, PyObject *c_obj, int recurse)
 {
     Py_ssize_t size;
     int retval;
+    int do_traverse;
 
     if (info->nodump != NULL && 
         info->nodump != Py_None
@@ -473,12 +474,26 @@ _dump_object_to_ref_info(struct ref_info *info, PyObject *c_obj, int recurse)
         _write_to_ref_info(info, ", \"len\": " SSIZET_FMT, PyDict_Size(c_obj));
     }
     _write_static_to_info(info, ", \"refs\": [");
-    if (Py_TYPE(c_obj)->tp_traverse != NULL) {
+    do_traverse = 1;
+    if (Py_TYPE(c_obj)->tp_traverse == NULL
+        || (Py_TYPE(c_obj) == &PyType_Type
+            && !PyType_HasFeature((PyTypeObject*)c_obj, Py_TPFLAGS_HEAPTYPE)))
+    {
+        /* Obviously we don't traverse if there is no traverse function. But
+         * also, if this is a 'Type' (class definition), then
+         * PyTypeObject.tp_traverse has an assertion about whether this type is
+         * a HEAPTYPE. In debug builds, this can trip and cause failures, even
+         * though it doesn't seem to hurt anything.
+         *  See: https://bugs.launchpad.net/bugs/586122
+         */
+        do_traverse = 0;
+    }
+    if (do_traverse) {
         info->first = 1;
         Py_TYPE(c_obj)->tp_traverse(c_obj, _dump_reference, info);
     }
     _write_static_to_info(info, "]}\n");
-    if (Py_TYPE(c_obj)->tp_traverse != NULL && recurse != 0) {
+    if (do_traverse && recurse != 0) {
         if (recurse == 2) { /* Always dump one layer deeper */
             Py_TYPE(c_obj)->tp_traverse(c_obj, _dump_child, info);
         } else if (recurse == 1) {
