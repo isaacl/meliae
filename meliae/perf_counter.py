@@ -99,6 +99,19 @@ class _LinuxPerformanceCounter(PerformanceCounter):
         # This returns wall-clock time
         return time.time
 
+    def get_memory(self, process):
+        with open('/proc/%d/status' % (process.pid,), 'r') as proc_status:
+            split_lines = [line.split(':', 1) for line in proc_status]
+        proc_status = dict([(k,v.strip()) for (k,v) in split_lines])
+        try:
+            current = int(proc_status['VmRSS'].split()[0]) * 1024
+            peak = int(proc_status['VmHWM'].split()[0]) * 1024
+        except KeyError:
+            # The Vm* fields can be absent after the process has terminated but
+            # before it has been reaped.
+            return None
+        return current, peak
+
 
 class _Win32PerformanceCounter(PerformanceCounter):
 
