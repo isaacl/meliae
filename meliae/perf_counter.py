@@ -103,17 +103,21 @@ class _LinuxPerformanceCounter(PerformanceCounter):
     def get_memory(self, process):
         pid = process.pid
         try:
-            f = open('/proc/%s/status', 'rb')
+            f = open('/proc/%s/status' % (process.pid,), 'rb')
         except (IOError, OSError):
-            return None
+            return None, None
         try:
             content = f.read()
         finally:
             f.close()
         m = re.search(r'(?i)vmpeak:\s*(?P<peak>\d+) kB', content)
-        if m is None:
-            return None
-        return int(m.group('val')) * 1024
+	peak = current = None
+        if m is not None:
+	   peak = int(m.group('peak')) * 1024
+        m = re.search(r'(?i)vmsize:\s*(?P<current>\d+) kB', content)
+        if m is not None:
+	   current = int(m.group('current')) * 1024
+	return current, peak
 
 
 class _Win32PerformanceCounter(PerformanceCounter):
