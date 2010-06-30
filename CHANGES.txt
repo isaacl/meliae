@@ -5,10 +5,16 @@ Meliae Changes
 .. contents:: List of Releases
    :depth: 1
 
+Meliae 0.2.2
+############
+
+:0.2.2: (not released yet)
+
+
 Meliae 0.2.1rc1
 ###############
 
-:0.2.1rc1: (not released yet)
+:0.2.1rc1: 2010-06-30
 
 * Avoid calling ``PyType_Type.tp_traverse`` when the argument is not a
   heap-class. There is an assert that gets tripped if you are running a
