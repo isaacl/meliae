@@ -1,4 +1,4 @@
-# Copyright (C) 2009 Canonical Ltd
+# Copyright (C) 2009, 2010 Canonical Ltd
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,7 @@ cdef extern from "stdio.h":
     FILE *stderr
     size_t fwrite(void *, size_t, size_t, FILE *)
     size_t fprintf(FILE *, char *, ...)
+    void fflush(FILE *)
 
 cdef extern from "Python.h":
     FILE *PyFile_AsFile(object)
@@ -60,7 +61,7 @@ def size_of(obj):
 
 cdef void _file_io_callback(void *callee_data, char *bytes, size_t len):
     cdef FILE *file_cb
-    
+
     file_cb = <FILE *>callee_data
     fwrite(bytes, 1, len, file_cb)
 
@@ -93,9 +94,9 @@ def dump_object_info(object out, object obj, object nodump=None,
 
     fp_out = PyFile_AsFile(out)
     if fp_out != NULL:
-        # This must be a callable
         _dump_object_info(<write_callback>_file_io_callback, fp_out, obj,
                           nodump, recurse_depth)
+        fflush(fp_out)
     else:
         _dump_object_info(<write_callback>_callable_callback, <void *>out, obj,
                           nodump, recurse_depth)

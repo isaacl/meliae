@@ -395,7 +395,8 @@ class ObjManager(object):
         collapsed = 0
         total = len(self.objs)
         tlast = timer()-20
-        for item_idx, (address, obj) in enumerate(self.objs.items()):
+        to_be_removed = set()
+        for item_idx, (address, obj) in enumerate(self.objs.iteritems()):
             if obj.type_str in ('str', 'dict', 'tuple', 'list', 'type',
                                 'function', 'wrapper_descriptor',
                                 'code', 'classobj', 'int',
@@ -441,9 +442,14 @@ class ObjManager(object):
             obj.total_size = 0
             if obj.type_str == 'instance':
                 obj.type_str = type_obj.value
-            # Now that all the data has been moved into the instance, remove
-            # the dict from the collection
-            del self.objs[dict_obj.address]
+            # Now that all the data has been moved into the instance, we
+            # will want to remove the dict from the collection.  We'll do the
+            # actual deletion later, since we are using iteritems for this
+            # loop.
+            to_be_removed.add(dict_obj.address)
+        # Now we can do the actual deletion.
+        for address in to_be_removed:
+            del self.objs[address]
         if self.show_progress:
             sys.stderr.write('checked %8d / %8d collapsed %8d    \n'
                              % (item_idx, total, collapsed))

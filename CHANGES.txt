@@ -5,6 +5,28 @@ Meliae Changes
 .. contents:: List of Releases
    :depth: 1
 
+Meliae 0.2.1rc1
+###############
+
+:0.2.1rc1: (not released yet)
+
+* Avoid calling ``PyType_Type.tp_traverse`` when the argument is not a
+  heap-class. There is an assert that gets tripped if you are running a
+  debug build (or something to do with how Fedora builds its python).
+  (John Arbash Meinel, #586122)
+
+* Flush the file handle before exiting. We were doing it at the Python
+  layer, but that might not translate into the ``FILE*`` object.
+  (John Arbash Meinel, #428165)
+
+* Handle some issues when using Pyrex 0.9.8.4. It was treating
+  ``<unsigned long>`` as casting the object pointer, not as a Python
+  level "extract an integer". However, assignment to an ``cdef unsigned
+  long`` does the right thing. (John Arbash Meinel)
+
+* Tweak some memory performance issues (Gary Poster, #581918)
+
+
 Meliae 0.2.0
 ############
 
