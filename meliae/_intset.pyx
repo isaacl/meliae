@@ -112,7 +112,9 @@ cdef class IntSet:
             perturb = perturb >> 5 # PERTURB_SHIFT
 
     def __contains__(self, val):
-        return self._contains(<int_type>val)
+        cdef int_type i_val
+        i_val = val
+        return self._contains(i_val)
 
     cdef object _contains(self, int_type c_val):
         cdef int_type *entry
@@ -220,10 +222,14 @@ cdef class IDSet(IntSet):
     """
 
     def add(self, val):
-        self._add(<int_type>(<unsigned long>val))
+        cdef unsigned long ul_val
+        ul_val = val
+        self._add(<int_type>(ul_val))
 
     def __contains__(self, val):
-        return self._contains(<int_type>(<unsigned long>val))
+        cdef unsigned long ul_val
+        ul_val = val
+        return self._contains(<int_type>(ul_val))
 
     # TODO: Consider that the code would probably be simpler if we just
     # bit-shifted before passing the value to self._add and self._contains,

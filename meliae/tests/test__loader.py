@@ -14,6 +14,8 @@
 
 """Pyrex extension for tracking loaded objects"""
 
+import sys
+
 from meliae import (
     _loader,
     warn,
@@ -22,7 +24,7 @@ from meliae import (
 
 
 class TestMemObjectCollection(tests.TestCase):
-    
+
     def test__init__(self):
         moc = _loader.MemObjectCollection()
         self.assertEqual(0, moc._active)
@@ -38,7 +40,6 @@ class TestMemObjectCollection(tests.TestCase):
         self.assertEqual(933, moc._test_lookup(933))
         self.assertEqual(933, moc._test_lookup(933+1024))
         self.assertEqual(933, moc._test_lookup(933L+1024L))
-        self.assertEqual(933, moc._test_lookup(933L+2**32-1))
 
     def test__len__(self):
         moc = _loader.MemObjectCollection()
