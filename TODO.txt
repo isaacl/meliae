@@ -4,27 +4,7 @@ Things to do
 
 A fairly random collection of things to work on next...
 
-1) Coming up with a catchy or at least somewhat interesting name.
-
-   I suck at names. Currently "memory_dump" is the library, pymemdump is
-   the project. I don't mind a functional name, but I don't want people
-   going "ugh" when they think of using the tool.  :) 
-
-   When this happens, create an official project on Launchpad, and host it
-   there.
-
-2) (DONE @ revno 58) Tracking the memory consumed by the GC overhead.
-
-   Objects allocated in the garbage collector (just about everything,
-   strings being the notable exception) actually have a PyGC_Head
-   structure allocated first. So while a 1 entry tuple *looks* like it
-   is only 16 bytes, it actually has another probably 16-byte PyGC_Head
-   structure allocated for each one.
-
-   I haven't quite figured out how to tell if a given object is in the
-   gc. It may just be a bit-field in the type object.
-
-3) Generating a Calltree output.
+1) Generating a Calltree output.
 
    I haven't yet understood the calltree syntax, nor how I want to
    exactly match things. Certainly you don't have FILE/LINE to put into
@@ -34,7 +14,7 @@ A fairly random collection of things to work on next...
 
 .. _runsnakerun: http://www.vrplumber.com/programming/runsnakerun/
 
-4) Other analysis tools, like walking the ref graph.
+2) Other analysis tools, like walking the ref graph.
 
    I'm thinking something similar to PDB, which could let you walk
    up-and-down the reference graph, to let you figure out why that one
@@ -42,40 +22,12 @@ A fairly random collection of things to work on next...
    At the moment, you can do this using '*' in Vim, which is at least a
    start, and one reason to use a text-compatible dump format.
 
-5) Easier ways to hook this into existing processes...
-
-   I'm not really sure what to do here, but adding a function to make it
-   easier to write-out and load-in the memory info, when you aren't as
-   memory constrained.
-
-   The dump file current takes ~ the same amount of memory as the actual
-   objects in ram, both on disk, and then when loaded back into memory.
-
-6) Dump differencing utilities.
+3) Dump differencing utilities.
 
    This probably will make it a bit easier to see where memory is
    increasing, rather than just where it is at right now.
 
-7) Cheaper "dict" of MemObjects.
-
-   At the moment, loading a 2M object dump costs 50MB for just the dict
-   holding them. However each entry uses a simple object address as the
-   key, which it maintains on the object itself. So instead of 3-words
-   per entry, you could use 1. Further, the address isn't all that great
-   as a hash key. Namely 90% of your objects are aligned on a 16-byte
-   boundary, another 9% or so on a 8-byte boundary, and the random
-   Integer is allocated on a 4-byte boundary. Regardless, just using
-   "address & 0xFF" is going to have ~16x more collisions than doing
-   something a bit more sensible. (Rotate the bits a bit.)
-
-   Also, I'm thinking to allow you to load a dump file, and strip off
-   things that may not be as interesting. Like whether you want values
-   or not, or if you wanted to limit the maximum reference list to 100
-   or so. I figure at more that 100, you aren't all that interested in
-   an individual reference. At it might be nice to be able to analyze
-   big dump files without consuming all of your memory.
-
-8) Full cross-platform and version compatibility.
+4) Full cross-platform and version compatibility testing.
 
    I'd like to support python2.4+, 32/64-bit, Win/Linux/Mac. I've tested
    a couple variants, but I don't have all of them to make sure it works
