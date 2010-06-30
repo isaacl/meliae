@@ -476,7 +476,7 @@ _dump_object_to_ref_info(struct ref_info *info, PyObject *c_obj, int recurse)
     _write_static_to_info(info, ", \"refs\": [");
     do_traverse = 1;
     if (Py_TYPE(c_obj)->tp_traverse == NULL
-        || (Py_TYPE(c_obj) == &PyType_Type
+        || (Py_TYPE(c_obj)->tp_traverse == PyType_Type.tp_traverse
             && !PyType_HasFeature((PyTypeObject*)c_obj, Py_TPFLAGS_HEAPTYPE)))
     {
         /* Obviously we don't traverse if there is no traverse function. But
@@ -529,7 +529,10 @@ PyObject *_get_referents(PyObject *c_obj)
     if (lst == NULL) {
         return NULL;
     }
-    if (Py_TYPE(c_obj)->tp_traverse != NULL) {
+    if (Py_TYPE(c_obj)->tp_traverse != NULL
+        && (Py_TYPE(c_obj)->tp_traverse != PyType_Type.tp_traverse
+            || PyType_HasFeature((PyTypeObject *)c_obj, Py_TPFLAGS_HEAPTYPE)))
+    {
         Py_TYPE(c_obj)->tp_traverse(c_obj, _append_object, lst);
     }
     return lst;
