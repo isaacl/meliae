@@ -1,4 +1,4 @@
-# Copyright (C) 2009 Canonical Ltd
+# Copyright (C) 2009, 2010 Canonical Ltd
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -16,6 +16,7 @@
 
 import ctypes
 import math
+import re
 import sys
 import time
 
@@ -98,6 +99,25 @@ class _LinuxPerformanceCounter(PerformanceCounter):
     def get_timer(self):
         # This returns wall-clock time
         return time.time
+
+    def get_memory(self, process):
+        pid = process.pid
+        try:
+            f = open('/proc/%s/status' % (process.pid,), 'rb')
+        except (IOError, OSError):
+            return None, None
+        try:
+            content = f.read()
+        finally:
+            f.close()
+        m = re.search(r'(?i)vmpeak:\s*(?P<peak>\d+) kB', content)
+	peak = current = None
+        if m is not None:
+	   peak = int(m.group('peak')) * 1024
+        m = re.search(r'(?i)vmsize:\s*(?P<current>\d+) kB', content)
+        if m is not None:
+	   current = int(m.group('current')) * 1024
+	return current, peak
 
 
 class _Win32PerformanceCounter(PerformanceCounter):

@@ -101,11 +101,8 @@ class TestLoad(tests.TestCase):
         t_file.seek(0)
         manager = loader.load(t_file, show_prog=False)
         test_dict_id = id(test_dict)
-        if test_dict_id > sys.maxint:
-            # We wrapped around to the negative value, note, this needs to be
-            # re-evaluated for 64-bit versions of python
-            test_dict_id = int(test_dict_id - 2 * (sys.maxint + 1))
-        self.assertTrue(test_dict_id in manager.objs)
+        self.assertTrue(test_dict_id in manager.objs,
+			'%s not found in %s' % (test_dict_id, manager.objs.keys()))
 
     def test_load_one(self):
         objs = loader.load([
