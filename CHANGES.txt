@@ -10,6 +10,10 @@ Meliae 0.2.2
 
 :0.2.2: (not released yet)
 
+* When dumping a ``PyFrame`` look at the function object for
+  ``co_name``, so you don't have to wander through the references to
+  get their yourself. (Andrew Bennetts)
+
 
 Meliae 0.2.1rc1
 ###############
