@@ -42,14 +42,15 @@ if sys.platform == 'win32':
     timer = time.clock
 
 # This is the minimal regex that is guaranteed to match. In testing, it is
-# about 3x faster than using simplejson, it is just less generic.
+# faster than simplejson without extensions, though slower than simplejson w/
+# extensions.
 _object_re = re.compile(
     r'\{"address": (?P<address>\d+)'
-    r', "type": "(?P<type>.*)"'
+    r', "type": "(?P<type>[^"]*)"'
     r', "size": (?P<size>\d+)'
     r'(, "name": "(?P<name>.*)")?'
     r'(, "len": (?P<len>\d+))?'
-    r'(, "value": "?(?P<value>.*?)"?)?'
+    r'(, "value": "?(?P<value>[^"]*)"?)?'
     r', "refs": \[(?P<refs>[^]]*)\]'
     r'\}')
 
@@ -91,6 +92,11 @@ def _from_line(cls, line, temp_cache=None):
     if length is not None:
         length = int(length)
     refs = [int(val) for val in _refs_re.findall(refs)]
+    if value is not None:
+        try:
+            value = int(value)
+        except ValueError:
+            pass
     obj = cls(address=int(address),
               type_str=type_str,
               size=int(size),

@@ -46,7 +46,7 @@ _example_dump = [
 '{"address": 7, "type": "tuple", "size": 20, "len": 2, "refs": [4, 5]}',
 '{"address": 6, "type": "str", "size": 29, "len": 5, "value": "a str"'
  ', "refs": []}',
-'{"address": 8, "type": "module", "name": "mymod", "size": 60, "refs": [2]}',
+'{"address": 8, "type": "module", "size": 60, "name": "mymod", "refs": [2]}',
 ]
 
 # Note that this doesn't have a complete copy of the references. Namely when
@@ -115,6 +115,25 @@ class TestLoad(tests.TestCase):
         # The address should be exactly the same python object as the key in
         # the objs dictionary.
         self.assertTrue(keys[0] is obj.address)
+
+    def test_load_without_simplejson(self):
+        objs = loader.load([
+            '{"address": 1234, "type": "int", "size": 12, "value": 10'
+                ', "refs": []}',
+            '{"address": 2345, "type": "module", "size": 60, "name": "mymod"'
+                ', "refs": [1234]}',
+            ], using_json=False, show_prog=False).objs
+        keys = sorted(objs.keys())
+        self.assertEqual([1234, 2345], keys)
+        obj = objs[1234]
+        self.assertTrue(isinstance(obj, _loader._MemObjectProxy))
+        # The address should be exactly the same python object as the key in
+        # the objs dictionary.
+        self.assertTrue(keys[0] is obj.address)
+        self.assertEqual(10, obj.value)
+        obj = objs[2345]
+        self.assertEqual("module", obj.type_str)
+        self.assertEqual("mymod", obj.value)
 
     def test_load_example(self):
         objs = loader.load(_example_dump, show_prog=False)
