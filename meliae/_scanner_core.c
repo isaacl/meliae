@@ -472,6 +472,12 @@ _dump_object_to_ref_info(struct ref_info *info, PyObject *c_obj, int recurse)
         _write_to_ref_info(info, ", \"len\": " SSIZET_FMT, PySet_GET_SIZE(c_obj));
     } else if (PyDict_Check(c_obj)) {
         _write_to_ref_info(info, ", \"len\": " SSIZET_FMT, PyDict_Size(c_obj));
+    } else if (PyFrame_Check(c_obj)) {
+    	PyCodeObject *co = ((PyFrameObject*)c_obj)->f_code;
+        if (co) {
+            _write_static_to_info(info, ", \"value\": ");
+            _dump_string(info, co->co_name);
+        }
     }
     _write_static_to_info(info, ", \"refs\": [");
     do_traverse = 1;

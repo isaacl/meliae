@@ -1,4 +1,4 @@
-# Copyright (C) 2009 Canonical Ltd
+# Copyright (C) 2009, 2010 Canonical Ltd
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -267,6 +267,8 @@ def _py_dump_json_obj(obj):
         content.append(', "value": "False"')
     elif isinstance(obj, int):
         content.append(', "value": %d' % (obj,))
+    elif isinstance(obj, types.FrameType):
+        content.append(', "value": "%s"' % (obj.f_code.co_name,))
     first = True
     content.append(', "refs": [')
     ref_strs = []
@@ -474,6 +476,13 @@ class TestDumpInfo(tests.TestCase):
     def test_bool(self):
         self.assertDumpInfo(True)
         self.assertDumpInfo(False)
+
+    def test_frame(self):
+        def local_frame():
+            f = sys._getframe()
+            return f
+        f = local_frame()
+        self.assertDumpInfo(f)
 
 
 class TestGetReferents(tests.TestCase):
