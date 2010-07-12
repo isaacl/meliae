@@ -23,6 +23,8 @@
 #define _SCANNER_CORE_H_
 
 #include <Python.h>
+#include <code.h>
+#include <frameobject.h>
 #include <stdio.h>
 
 /**
