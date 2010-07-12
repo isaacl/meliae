@@ -50,7 +50,7 @@ _object_re = re.compile(
     r', "size": (?P<size>\d+)'
     r'(, "name": "(?P<name>.*)")?'
     r'(, "len": (?P<len>\d+))?'
-    r'(, "value": "?(?P<value>[^"]*)"?)?'
+    r'(, "value": "?(?P<value>.*)"?)?'
     r', "refs": \[(?P<refs>[^]]*)\]'
     r'\}')
 
