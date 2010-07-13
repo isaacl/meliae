@@ -36,6 +36,13 @@ def dump_all_referenced(outf, obj, is_pending=False):
     else:
         pending = [obj]
     last_offset = len(pending) - 1
+    # TODO: Instead of using an IDSet, we could use a BloomFilter. It would
+    #       mean some objects may not get dumped (blooms say "yes you
+    #       definitely are not present", but only "you might already be
+    #       present", collisions cause false positives.)
+    #       However, you can get by with 8-10bits for a 1% FPR, rather than
+    #       using 32/64-bit pointers + overhead for avoiding hash collisions.
+    #       So on 64-bit we drop from 16bytes/object to 1...
     seen = _intset.IDSet()
     if is_pending:
         seen.add(id(pending))
