@@ -87,6 +87,16 @@ _old_instance_dump = [
 '{"address": 8, "type": "tuple", "size": 28, "len": 0, "refs": []}',
 ]
 
+_intern_dict_dump = [
+'{"address": 2, "type": "str", "size": 25, "len": 1, "value": "a", "refs": []}',
+'{"address": 3, "type": "str", "size": 25, "len": 1, "value": "b", "refs": []}',
+'{"address": 4, "type": "str", "size": 25, "len": 1, "value": "c", "refs": []}',
+'{"address": 5, "type": "str", "size": 25, "len": 1, "value": "d", "refs": []}',
+'{"address": 6, "type": "dict", "size": 512, "refs": [2, 5, 5, 5, 4, 4, 3, 3]}',
+'{"address": 7, "type": "dict", "size": 512, "refs": [8, 8, 5, 5, 4, 4, 3, 3]}',
+'{"address": 8, "type": "dict", "size": 512, "refs": [2, 2, 5, 5, 4, 4, 3, 3]}',
+]
+
 
 class TestLoad(tests.TestCase):
 
@@ -381,3 +391,8 @@ class TestObjManager(tests.TestCase):
         #       strings). We could fix the test, or fix the extractor.
         manager = loader.load(_instance_dump, show_prog=False)
         self.assertEqual([2], manager.refs_as_list(manager[12]))
+
+    def test_guess_intern_dict(self):
+        manager = loader.load(_intern_dict_dump, show_prog=False)
+        obj = manager.guess_intern_dict()
+        self.assertEqual(8, obj.address)

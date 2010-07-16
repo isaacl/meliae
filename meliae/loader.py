@@ -488,6 +488,27 @@ class ObjManager(object):
             as_list.append(val)
         return as_list
 
+    def guess_intern_dict(self):
+        """Try to find the string intern dict.
+
+        This is a dict that only contains strings that point to themselves.
+        """
+        for o in self.objs.itervalues():
+            o_len = len(o)
+            if o.type_str != 'dict' or o_len == 0 or o.num_parents > 0:
+                # Must be a non-empty dict
+                continue
+            # We avoid calling o.children so that we don't have to create
+            # proxies for all objects
+            for i in xrange(0, o_len, 2):
+                # Technically, o[i].address == o[i+1].address, but the proxy
+                # objects are smart enough to get reused...
+                c_i = o[i]
+                c_i1 = o[i+1]
+                if c_i is not c_i1 or c_i.type_str != 'str':
+                    break
+            else:
+                return o
 
 
 def load(source, using_json=None, show_prog=True, collapse=True):
