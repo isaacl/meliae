@@ -579,7 +579,8 @@ cdef class _MemObjectProxy:
             #       a tuple/dict/etc
             if val.type_str == 'bool':
                 val = (val.value == 'True')
-            elif val.value is not None:
+            elif val.type_str in ('int', 'long', 'str', 'unicode', 'float',
+                                  ) and val.value is not None:
                 val = val.value
             elif val.type_str == 'NoneType':
                 val = None
