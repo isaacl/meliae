@@ -146,6 +146,14 @@ class TestLoad(tests.TestCase):
     def test_load_example(self):
         objs = loader.load(_example_dump, show_prog=False)
 
+    def test_load_defaults_to_computing_and_collapsing(self):
+        manager = loader.load(_instance_dump, show_prog=False, collapse=False)
+        instance_obj = manager[1]
+        self.assertEqual([2, 3], instance_obj.children)
+        manager = loader.load(_instance_dump, show_prog=False)
+        instance_obj = manager[1]
+        self.assertEqual([4, 5, 6, 7, 9, 10, 11, 12, 3], instance_obj.children)
+
     def test_load_compressed(self):
         # unfortunately NamedTemporaryFile's cannot be re-opened on Windows
         fd, name = tempfile.mkstemp(prefix='meliae-')
@@ -296,7 +304,7 @@ class TestObjManager(tests.TestCase):
                      ', "value": "boo", "refs": []}')
         lines.append('{"address": 12, "type": "dict", "size": 124'
                      ', "refs": []}')
-        manager = loader.load(lines, show_prog=False)
+        manager = loader.load(lines, show_prog=False, collapse=False)
         mymod_dict = manager.objs[9]
         self.assertEqual([10, 11], mymod_dict.children)
         manager.remove_expensive_references()
@@ -307,7 +315,7 @@ class TestObjManager(tests.TestCase):
         self.assertEqual([11, 0], mymod_dict.children)
 
     def test_collapse_instance_dicts(self):
-        manager = loader.load(_instance_dump, show_prog=False)
+        manager = loader.load(_instance_dump, show_prog=False, collapse=False)
         # This should collapse all of the references from the instance's dict
         # @2 into the instance @1
         instance = manager.objs[1]
@@ -335,7 +343,8 @@ class TestObjManager(tests.TestCase):
         self.assertFalse(15 in manager.objs)
 
     def test_collapse_old_instance_dicts(self):
-        manager = loader.load(_old_instance_dump, show_prog=False)
+        manager = loader.load(_old_instance_dump, show_prog=False,
+                              collapse=False)
         instance = manager.objs[1]
         self.assertEqual('instance', instance.type_str)
         self.assertEqual(36, instance.size)
@@ -357,7 +366,7 @@ class TestObjManager(tests.TestCase):
         # TODO: This test fails if simplejson is not installed, because the
         #       regex extractor does not cast to integers (they stay as
         #       strings). We could fix the test, or fix the extractor.
-        manager = loader.load(_instance_dump, show_prog=False)
+        manager = loader.load(_instance_dump, show_prog=False, collapse=False)
         as_dict = manager.refs_as_dict(manager[15])
         self.assertEqual({1: 'c', 'b': 'c'}, as_dict)
         manager.compute_parents()

@@ -490,7 +490,7 @@ class ObjManager(object):
 
 
 
-def load(source, using_json=None, show_prog=True):
+def load(source, using_json=None, show_prog=True, collapse=True):
     """Load objects from the given source.
 
     :param source: If this is a string, we will open it as a file and read all
@@ -518,10 +518,14 @@ def load(source, using_json=None, show_prog=True):
     if using_json is None:
         using_json = (simplejson is not None)
     try:
-        return _load(source, using_json, show_prog, input_size)
+        manager = _load(source, using_json, show_prog, input_size)
     finally:
         if cleanup is not None:
             cleanup()
+    if collapse:
+        manager.compute_parents()
+        manager.collapse_instance_dicts()
+    return manager
 
 
 def iter_objs(source, using_json=False, show_prog=False, input_size=0,
