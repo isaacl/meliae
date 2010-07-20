@@ -42,14 +42,15 @@ if sys.platform == 'win32':
     timer = time.clock
 
 # This is the minimal regex that is guaranteed to match. In testing, it is
-# about 3x faster than using simplejson, it is just less generic.
+# faster than simplejson without extensions, though slower than simplejson w/
+# extensions.
 _object_re = re.compile(
     r'\{"address": (?P<address>\d+)'
-    r', "type": "(?P<type>.*)"'
+    r', "type": "(?P<type>[^"]*)"'
     r', "size": (?P<size>\d+)'
     r'(, "name": "(?P<name>.*)")?'
     r'(, "len": (?P<len>\d+))?'
-    r'(, "value": "?(?P<value>.*?)"?)?'
+    r'(, "value": "?(?P<value>.*)"?)?'
     r', "refs": \[(?P<refs>[^]]*)\]'
     r'\}')
 
@@ -91,6 +92,11 @@ def _from_line(cls, line, temp_cache=None):
     if length is not None:
         length = int(length)
     refs = [int(val) for val in _refs_re.findall(refs)]
+    if value is not None:
+        try:
+            value = int(value)
+        except ValueError:
+            pass
     obj = cls(address=int(address),
               type_str=type_str,
               size=int(size),
@@ -482,9 +488,30 @@ class ObjManager(object):
             as_list.append(val)
         return as_list
 
+    def guess_intern_dict(self):
+        """Try to find the string intern dict.
+
+        This is a dict that only contains strings that point to themselves.
+        """
+        for o in self.objs.itervalues():
+            o_len = len(o)
+            if o.type_str != 'dict' or o_len == 0 or o.num_parents > 0:
+                # Must be a non-empty dict
+                continue
+            # We avoid calling o.children so that we don't have to create
+            # proxies for all objects
+            for i in xrange(0, o_len, 2):
+                # Technically, o[i].address == o[i+1].address, but the proxy
+                # objects are smart enough to get reused...
+                c_i = o[i]
+                c_i1 = o[i+1]
+                if c_i is not c_i1 or c_i.type_str != 'str':
+                    break
+            else:
+                return o
 
 
-def load(source, using_json=None, show_prog=True):
+def load(source, using_json=None, show_prog=True, collapse=True):
     """Load objects from the given source.
 
     :param source: If this is a string, we will open it as a file and read all
@@ -512,10 +539,14 @@ def load(source, using_json=None, show_prog=True):
     if using_json is None:
         using_json = (simplejson is not None)
     try:
-        return _load(source, using_json, show_prog, input_size)
+        manager = _load(source, using_json, show_prog, input_size)
     finally:
         if cleanup is not None:
             cleanup()
+    if collapse:
+        manager.compute_parents()
+        manager.collapse_instance_dicts()
+    return manager
 
 
 def iter_objs(source, using_json=False, show_prog=False, input_size=0,

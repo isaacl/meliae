@@ -1,4 +1,4 @@
-# Copyright (C) 2009 Canonical Ltd
+# Copyright (C) 2009, 2010 Canonical Ltd
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -32,6 +32,9 @@ def spawn_and_track(opts, args):
     while p.poll() is None:
         now = timer()
         cur_mem, peak_mem = perf_counter.perf_counter.get_memory(p)
+        if cur_mem is None or peak_mem is None:
+            p.wait()
+            break
         mem_secs += cur_mem * (now - last)
         last = now
         time.sleep(opts.sleep_time)

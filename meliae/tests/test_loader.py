@@ -46,7 +46,7 @@ _example_dump = [
 '{"address": 7, "type": "tuple", "size": 20, "len": 2, "refs": [4, 5]}',
 '{"address": 6, "type": "str", "size": 29, "len": 5, "value": "a str"'
  ', "refs": []}',
-'{"address": 8, "type": "module", "name": "mymod", "size": 60, "refs": [2]}',
+'{"address": 8, "type": "module", "size": 60, "name": "mymod", "refs": [2]}',
 ]
 
 # Note that this doesn't have a complete copy of the references. Namely when
@@ -87,6 +87,16 @@ _old_instance_dump = [
 '{"address": 8, "type": "tuple", "size": 28, "len": 0, "refs": []}',
 ]
 
+_intern_dict_dump = [
+'{"address": 2, "type": "str", "size": 25, "len": 1, "value": "a", "refs": []}',
+'{"address": 3, "type": "str", "size": 25, "len": 1, "value": "b", "refs": []}',
+'{"address": 4, "type": "str", "size": 25, "len": 1, "value": "c", "refs": []}',
+'{"address": 5, "type": "str", "size": 25, "len": 1, "value": "d", "refs": []}',
+'{"address": 6, "type": "dict", "size": 512, "refs": [2, 5, 5, 5, 4, 4, 3, 3]}',
+'{"address": 7, "type": "dict", "size": 512, "refs": [8, 8, 5, 5, 4, 4, 3, 3]}',
+'{"address": 8, "type": "dict", "size": 512, "refs": [2, 2, 5, 5, 4, 4, 3, 3]}',
+]
+
 
 class TestLoad(tests.TestCase):
 
@@ -116,8 +126,43 @@ class TestLoad(tests.TestCase):
         # the objs dictionary.
         self.assertTrue(keys[0] is obj.address)
 
+    def test_load_without_simplejson(self):
+        objs = loader.load([
+            '{"address": 1234, "type": "int", "size": 12, "value": 10'
+                ', "refs": []}',
+            '{"address": 2345, "type": "module", "size": 60, "name": "mymod"'
+                ', "refs": [1234]}',
+            '{"address": 4567, "type": "str", "size": 150, "len": 126'
+                ', "value": "Test \\\'whoami\\\'\\u000a\\"Your name\\"'
+                ', "refs": []}'
+            ], using_json=False, show_prog=False).objs
+        keys = sorted(objs.keys())
+        self.assertEqual([1234, 2345, 4567], keys)
+        obj = objs[1234]
+        self.assertTrue(isinstance(obj, _loader._MemObjectProxy))
+        # The address should be exactly the same python object as the key in
+        # the objs dictionary.
+        self.assertTrue(keys[0] is obj.address)
+        self.assertEqual(10, obj.value)
+        obj = objs[2345]
+        self.assertEqual("module", obj.type_str)
+        self.assertEqual("mymod", obj.value)
+        obj = objs[4567]
+        # Known failure? We don't unescape properly, also, I'm surprised this
+        # works. " should exit the " string, but \" seems to leave it. But the
+        # '\' is also left verbatim because it is a raw string...
+        self.assertEqual(r"Test \'whoami\'\u000a\"Your name\"", obj.value)
+
     def test_load_example(self):
         objs = loader.load(_example_dump, show_prog=False)
+
+    def test_load_defaults_to_computing_and_collapsing(self):
+        manager = loader.load(_instance_dump, show_prog=False, collapse=False)
+        instance_obj = manager[1]
+        self.assertEqual([2, 3], instance_obj.children)
+        manager = loader.load(_instance_dump, show_prog=False)
+        instance_obj = manager[1]
+        self.assertEqual([4, 5, 6, 7, 9, 10, 11, 12, 3], instance_obj.children)
 
     def test_load_compressed(self):
         # unfortunately NamedTemporaryFile's cannot be re-opened on Windows
@@ -269,7 +314,7 @@ class TestObjManager(tests.TestCase):
                      ', "value": "boo", "refs": []}')
         lines.append('{"address": 12, "type": "dict", "size": 124'
                      ', "refs": []}')
-        manager = loader.load(lines, show_prog=False)
+        manager = loader.load(lines, show_prog=False, collapse=False)
         mymod_dict = manager.objs[9]
         self.assertEqual([10, 11], mymod_dict.children)
         manager.remove_expensive_references()
@@ -280,7 +325,7 @@ class TestObjManager(tests.TestCase):
         self.assertEqual([11, 0], mymod_dict.children)
 
     def test_collapse_instance_dicts(self):
-        manager = loader.load(_instance_dump, show_prog=False)
+        manager = loader.load(_instance_dump, show_prog=False, collapse=False)
         # This should collapse all of the references from the instance's dict
         # @2 into the instance @1
         instance = manager.objs[1]
@@ -308,7 +353,8 @@ class TestObjManager(tests.TestCase):
         self.assertFalse(15 in manager.objs)
 
     def test_collapse_old_instance_dicts(self):
-        manager = loader.load(_old_instance_dump, show_prog=False)
+        manager = loader.load(_old_instance_dump, show_prog=False,
+                              collapse=False)
         instance = manager.objs[1]
         self.assertEqual('instance', instance.type_str)
         self.assertEqual(36, instance.size)
@@ -330,7 +376,7 @@ class TestObjManager(tests.TestCase):
         # TODO: This test fails if simplejson is not installed, because the
         #       regex extractor does not cast to integers (they stay as
         #       strings). We could fix the test, or fix the extractor.
-        manager = loader.load(_instance_dump, show_prog=False)
+        manager = loader.load(_instance_dump, show_prog=False, collapse=False)
         as_dict = manager.refs_as_dict(manager[15])
         self.assertEqual({1: 'c', 'b': 'c'}, as_dict)
         manager.compute_parents()
@@ -345,3 +391,8 @@ class TestObjManager(tests.TestCase):
         #       strings). We could fix the test, or fix the extractor.
         manager = loader.load(_instance_dump, show_prog=False)
         self.assertEqual([2], manager.refs_as_list(manager[12]))
+
+    def test_guess_intern_dict(self):
+        manager = loader.load(_intern_dict_dump, show_prog=False)
+        obj = manager.guess_intern_dict()
+        self.assertEqual(8, obj.address)

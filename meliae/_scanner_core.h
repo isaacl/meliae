@@ -1,4 +1,4 @@
-/* Copyright (C) 2009 Canonical Ltd
+/* Copyright (C) 2009, 2010 Canonical Ltd
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,6 +23,8 @@
 #define _SCANNER_CORE_H_
 
 #include <Python.h>
+#include <code.h>
+#include <frameobject.h>
 #include <stdio.h>
 
 /**

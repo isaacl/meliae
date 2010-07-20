@@ -5,6 +5,25 @@ Meliae Changes
 .. contents:: List of Releases
    :depth: 1
 
+Meliae 0.2.1
+############
+
+:0.2.1: 2010-07-20
+
+* When dumping a ``PyFrame`` look at the function object for
+  ``co_name``, so you don't have to wander through the references to
+  get their yourself. (Andrew Bennetts)
+
+* Fixes for the simple regex parser (w/o simplejson). However,
+  simplejson is still recommended, because it is both faster and more
+  accurate (decodes unicode escapes, etc). (John Arbash Meinel)
+
+* ``loader.load()`` now defaults to computing parents and collapsing
+  instance dicts. It does mean that loading will be a bit slower, and
+  consume more memory, but it is almost always what you need to do
+  first anyway. (John Arbash Meinel)
+
+
 Meliae 0.2.1rc1
 ###############
 

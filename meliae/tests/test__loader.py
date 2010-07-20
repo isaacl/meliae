@@ -449,3 +449,11 @@ class Test_MemObjectProxy(tests.TestCase):
         # to the type
         mop = self.moc.add(4, 'MyClass', 156, children=[2, 1, 8])
         self.assertEqual({1: 'a'}, mop.refs_as_dict())
+
+    def test_expand_refs_as_dict_unknown(self):
+        # We only expand objects that fall into known types, not just any value
+        mop_f = self.moc.add(1, 'frame', 300, value='func_foo')
+        self.moc.add(2, 'str', 25, value='a')
+        mop = self.moc.add(3, 'dict', 140, children=[2, 1])
+        as_dict = mop.refs_as_dict()
+        self.assertEqual({'a': mop_f}, as_dict)
