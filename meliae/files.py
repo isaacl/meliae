@@ -1,4 +1,4 @@
-# Copyright (C) 2009 Canonical Ltd
+# Copyright (C) 2009, 2010 Canonical Ltd
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -63,6 +63,12 @@ def open_file(filename):
         process.stderr.close()
         terminate = getattr(process, 'terminate', None)
         # terminate is a py2.6 thing
+        # XXX: I've observed a test failure when the subprocess has already
+        #      finished and then we try to call terminate, which then raises an
+        #      exception (not-allowed error). We should probably use a wrapper.
+        #      Either call process.poll() first, or trap the terminate for
+        #      exceptions. The error might also be that the process didn't
+        #      actually spawn yet...
         if terminate is not None:
             return process.stdout, terminate
         else:
