@@ -10,6 +10,10 @@ Meliae 0.3
 
 :0.3: (not released yet)
 
+* Add ``__sizeof__`` members to a lot of the core classes (IntSet,
+  etc.) (John Arbash Meinel)
+
+
 Meliae 0.2.1
 ############
 

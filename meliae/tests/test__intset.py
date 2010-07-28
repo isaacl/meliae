@@ -18,6 +18,7 @@ import sys
 
 from meliae import (
     _intset,
+    _scanner,
     tests,
     )
 
@@ -107,6 +108,24 @@ class TestIntSet(tests.TestCase):
     def test_remove(self):
         # Not supported yet... KnownFailure
         pass
+
+    def assertSizeOf(self, num_words, obj, extra_size=0, has_gc=True):
+        expected_size = extra_size + num_words * _scanner._word_size
+        if has_gc:
+            expected_size += _scanner._gc_head_size
+        self.assertEqual(expected_size, _scanner.size_of(obj))
+
+    def test__sizeof__(self):
+        # The intset class should report a size
+        iset = self._set_type([])
+        # I'm a bit leery of has_gc=False, as I think some versions of pyrex
+        # will put the object into GC even though it doesn't have any 'object'
+        # references...
+        # We could do something with a double-entry check
+        self.assertSizeOf(3, iset, extra_size=4, has_gc=False)
+        iset.add(12345)
+        # Min allocation is 256 entries
+        self.assertSizeOf(3+256, iset, extra_size=4, has_gc=False)
 
 
 class TestIDSet(TestIntSet):
