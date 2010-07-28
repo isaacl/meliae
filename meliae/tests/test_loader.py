@@ -93,7 +93,7 @@ _intern_dict_dump = [
 '{"address": 4, "type": "str", "size": 25, "len": 1, "value": "c", "refs": []}',
 '{"address": 5, "type": "str", "size": 25, "len": 1, "value": "d", "refs": []}',
 '{"address": 6, "type": "dict", "size": 512, "refs": [2, 5, 5, 5, 4, 4, 3, 3]}',
-'{"address": 7, "type": "dict", "size": 512, "refs": [8, 8, 5, 5, 4, 4, 3, 3]}',
+'{"address": 7, "type": "dict", "size": 512, "refs": [6, 6, 5, 5, 4, 4, 3, 3]}',
 '{"address": 8, "type": "dict", "size": 512, "refs": [2, 2, 5, 5, 4, 4, 3, 3]}',
 ]
 
