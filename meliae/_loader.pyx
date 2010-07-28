@@ -52,6 +52,13 @@ ctypedef struct RefList:
     PyObject *refs[0]
 
 
+cdef Py_ssize_t sizeof_RefList(RefList *val):
+    """Determine how many bytes for this ref list. val() can be NULL"""
+    if val == NULL:
+        return 0
+    return sizeof(long) + (sizeof(PyObject *) * val.size)
+
+
 cdef object _set_default(object d, object val):
     """Either return the value in the dict, or return 'val'.
 
@@ -317,6 +324,16 @@ cdef class _MemObjectProxy:
         if self._managed_obj != NULL:
             _free_mem_object(self._managed_obj)
             self._managed_obj = NULL
+
+    def __sizeof__(self):
+        my_size = sizeof(_MemObjectProxy)
+        if self._managed_obj != NULL:
+            my_size += sizeof(_MemObject)
+        # XXX: Note that to get the memory dump correct for all this stuff,
+        #      We need to walk all the RefList objects and get their size, and
+        #      tp_traverse should be walking to all of those referenced
+        #      integers, etc.
+        return my_size
 
     property address:
         """The identifier for the tracked object."""
@@ -604,6 +621,19 @@ cdef class MemObjectCollection:
     def __len__(self):
         return self._active
 
+    def __sizeof__(self):
+        cdef int i
+        cdef _MemObject *cur
+        cdef long my_size
+        my_size = (sizeof(MemObjectCollection)
+            + (sizeof(_MemObject**) * (self._table_mask + 1)))
+        for i from 0 <= i <= self._table_mask:
+            cur = self._table[i]
+            if cur != NULL:
+                my_size += (sizeof_RefList(cur.child_list)
+                            + sizeof_RefList(cur.parent_list))
+        return my_size
+
     cdef _MemObject** _lookup(self, address) except NULL:
         cdef long the_hash
         cdef size_t i, n_lookup
@@ -795,7 +825,6 @@ cdef class MemObjectCollection:
         # table
         PyMem_Free(old_table)
         return new_size
-
 
     def add(self, address, type_str, size, children=(), length=0,
             value=None, name=None, parent_list=(), total_size=0):

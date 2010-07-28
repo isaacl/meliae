@@ -18,6 +18,7 @@ import sys
 
 from meliae import (
     _loader,
+    _scanner,
     warn,
     tests,
     )
@@ -191,6 +192,29 @@ class TestMemObjectCollection(tests.TestCase):
         del moc[0]
         self.assertEqual([1024, 512], list(moc))
         self.assertEqual([1024, 512], list(moc.iterkeys()))
+
+    def assertSizeOf(self, num_words, obj, extra_size=0, has_gc=True):
+        expected_size = extra_size + num_words * _scanner._word_size
+        if has_gc:
+            expected_size += _scanner._gc_head_size
+        self.assertEqual(expected_size, _scanner.size_of(obj))
+
+    def test__sizeof__base(self):
+        moc = _loader.MemObjectCollection()
+        # Empty table size is 1024 pointers
+        # 1: PyType*
+        # 2: refcnt
+        # 3: vtable*
+        # 4: _table*
+        # 3 4-byte int attributes
+        self.assertSizeOf(4+1024, moc, extra_size=3*4, has_gc=False)
+
+    def test__sizeof__with_reflists(self):
+        moc = _loader.MemObjectCollection()
+        # We should assign the memory for ref-lists to the container. A
+        # ref-list allocates the number of entries + 1
+        moc.add(0, 'foo', 100, children=[1234], parent_list=[3456, 7890])
+        self.assertSizeOf(4+1024+2+3, moc, extra_size=3*4, has_gc=False)
 
 
 class Test_MemObjectProxy(tests.TestCase):
@@ -457,3 +481,34 @@ class Test_MemObjectProxy(tests.TestCase):
         mop = self.moc.add(3, 'dict', 140, children=[2, 1])
         as_dict = mop.refs_as_dict()
         self.assertEqual({'a': mop_f}, as_dict)
+
+    def assertSizeOf(self, num_words, obj, extra_size=0, has_gc=True):
+        expected_size = extra_size + num_words * _scanner._word_size
+        if has_gc:
+            expected_size += _scanner._gc_head_size
+        self.assertEqual(expected_size, _scanner.size_of(obj))
+
+    def test__sizeof__(self):
+        mop = self.moc[0]
+        # 1: PyType*
+        # 2: refcnt
+        # 3: collection*
+        # 4: _MemObject*
+        # 5: _managed_obj *
+        # No vtable because we have no cdef functions
+        self.assertSizeOf(5, mop, has_gc=True)
+
+    def test__sizeof__managed(self):
+        mop = self.moc[0]
+        del self.moc[0]
+        # If the underlying object has been removed from the collection, then
+        # the memory is now being managed by the mop itself. So it grows by:
+        # 1: PyObject* address
+        # 2: PyObject* type_str
+        # 3: long size
+        # 4: RefList *child_list
+        # 5: PyObject *value
+        # 6: RefList *parent_list
+        # 7: unsigned long total_size
+        # 8: PyObject *proxy
+        self.assertSizeOf(5+8, mop, has_gc=True)

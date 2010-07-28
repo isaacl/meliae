@@ -122,10 +122,18 @@ class TestIntSet(tests.TestCase):
         # will put the object into GC even though it doesn't have any 'object'
         # references...
         # We could do something with a double-entry check
-        self.assertSizeOf(3, iset, extra_size=4, has_gc=False)
+        # Size is:
+        # 1: PyType*
+        # 2: refcnt
+        # 3: vtable*
+        # 4: _count
+        # 5: _mask
+        # 6: _array
+        # 4-byte int _has_singleton
+        self.assertSizeOf(6, iset, extra_size=4, has_gc=False)
         iset.add(12345)
         # Min allocation is 256 entries
-        self.assertSizeOf(3+256, iset, extra_size=4, has_gc=False)
+        self.assertSizeOf(6+256, iset, extra_size=4, has_gc=False)
 
 
 class TestIDSet(TestIntSet):

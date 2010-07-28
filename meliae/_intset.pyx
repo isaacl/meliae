@@ -66,7 +66,8 @@ cdef class IntSet:
         return self._count
 
     def __sizeof__(self):
-        my_size = (sizeof(Py_ssize_t)*2 + sizeof(int) + sizeof(int_type*))
+        # PyType *, RefCount, + known attributes
+        my_size = sizeof(IntSet)
         if self._array != NULL:
             my_size += (sizeof(int_type) * (self._mask + 1))
         return my_size
