@@ -13,6 +13,11 @@ Meliae 0.3
 * Add ``__sizeof__`` members to a lot of the core classes (IntSet,
   etc.) (John Arbash Meinel)
 
+* ``ObjectManager.compute_total_size()`` now only computes the size of
+  a single object, rather than all objects. All objects took too long
+  to be useful anyway, better to make it easier to use the useful api.
+  (John Arbash Meinel)
+
 
 Meliae 0.2.1
 ############

@@ -584,8 +584,9 @@ cdef class _MemObjectProxy:
         """
         as_dict = {}
         children = self.children
-        if self.type_str not in ('dict', 'module'):
-            # Instance dicts end with a 'type' reference
+        if len(children) % 2 == 1 and self.type_str not in ('dict', 'module'):
+            # Instance dicts end with a 'type' reference, but only do that if
+            # we actually have an odd number
             children = children[:-1]
         for idx in xrange(0, len(children), 2):
             key = self.collection[children[idx]]

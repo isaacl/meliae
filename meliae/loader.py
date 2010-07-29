@@ -314,7 +314,8 @@ class ObjManager(object):
                                                         self.show_progress):
             continue
 
-    def _compute_total_size(self, obj):
+    def compute_total_size(self, obj):
+        """Sum the size of all referenced objects (recursively)."""
         pending_descendents = list(obj.children)
         seen = _intset.IDSet()
         seen.add(obj.address)
@@ -340,32 +341,6 @@ class ObjManager(object):
         ##     import pdb; pdb.set_trace()
         obj.total_size = total_size
         return obj
-
-    def compute_total_size(self):
-        """This computes the total bytes referenced from this object."""
-        # Unfortunately, this is an N^2 operation :(. The problem is that
-        # a.total_size + b.total_size != c.total_size (if c references a & b).
-        # This is because a & b may refer to common objects. Consider something
-        # like:
-        #   A   _
-        #  / \ / \
-        # B   C  |
-        #  \ /  /
-        #   D--'
-        # D & C participate in a refcycle, and B has an alternative path to D.
-        # You certainly don't want to count D 2 times when computing the total
-        # size of A. Also, how do you give the relative contribution of B vs C
-        # in this graph?
-        total = len(self.objs)
-        break_on = total / 10
-        for idx, obj in enumerate(self.objs.itervalues()):
-            if self.show_progress and idx & 0x1ff == 0:
-                sys.stderr.write('compute size %8d / %8d        \r'
-                                 % (idx, total))
-            self._compute_total_size(obj)
-        if self.show_progress:
-            sys.stderr.write('compute size %8d / %8d        \n'
-                             % (idx, total))
 
     def summarize(self):
         summary = _ObjSummary()
