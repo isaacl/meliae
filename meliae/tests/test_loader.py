@@ -281,25 +281,20 @@ class TestObjManager(tests.TestCase):
 
     def test_compute_total_size(self):
         manager = loader.load(_example_dump, show_prog=False)
-        manager.compute_total_size()
         objs = manager.objs
+        manager.compute_total_size(objs[1])
         self.assertEqual(261, objs[1].total_size)
-        self.assertEqual(197, objs[2].total_size)
-        self.assertEqual(68, objs[3].total_size)
-        self.assertEqual(12, objs[4].total_size)
-        self.assertEqual(12, objs[5].total_size)
-        self.assertEqual(29, objs[6].total_size)
-        self.assertEqual(44, objs[7].total_size)
-        self.assertEqual(257, objs[8].total_size)
 
     def test_compute_total_size_missing_ref(self):
         lines = list(_example_dump)
         # 999 isn't in the dump, not sure how we get these in real life, but
-        # they exist
-        lines.append('{"address": 8, "type": "tuple", "size": 16, "len": 1'
+        # they exist. we should live with references that can't be resolved.
+        lines[-1] = ('{"address": 8, "type": "tuple", "size": 16, "len": 1'
                      ', "refs": [999]}')
         manager = loader.load(lines, show_prog=False)
-        manager.compute_total_size()
+        obj = manager[8]
+        manager.compute_total_size(obj)
+        self.assertEqual(16, obj.total_size)
 
     def test_remove_expensive_references(self):
         lines = list(_example_dump)
