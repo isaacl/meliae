@@ -63,14 +63,20 @@ def open_file(filename):
         process.stderr.close()
         terminate = getattr(process, 'terminate', None)
         # terminate is a py2.6 thing
-        # XXX: I've observed a test failure when the subprocess has already
-        #      finished and then we try to call terminate, which then raises an
-        #      exception (not-allowed error). We should probably use a wrapper.
-        #      Either call process.poll() first, or trap the terminate for
-        #      exceptions. The error might also be that the process didn't
-        #      actually spawn yet...
         if terminate is not None:
-            return process.stdout, terminate
+            def terminate_or_pass():
+                # It seems that on windows, sometimes terminate() can raise 
+                # WindowsError: [Error 5] Access is denied
+                # My guess is that the process has actually completed, and is
+                # no longer running.
+                try:
+                    return terminate()
+                except OSError, e:
+                    sys.stderr.write('Ignoring failure to terminate process:'
+                                     ' %s\n' % (e,))
+                # We *could* check if process.poll() returns that the
+                # process has already exited, etc.
+            return process.stdout, terminate_or_pass
         else:
             # We would like to use process.wait() but that can cause a deadlock
             # if the child is still writing.
