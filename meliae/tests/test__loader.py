@@ -239,6 +239,24 @@ class TestMemObjectCollection(tests.TestCase):
         del moc[1]
         self.assertSizeOf(4+1024+8+2+3, moc, extra_size=3*4, has_gc=False)
 
+    def test_traverse_empty(self):
+        # With nothing present, we return no referents
+        moc = _loader.MemObjectCollection()
+        self.assertEqual([], _scanner.get_referents(moc))
+
+    def test_traverse_simple_item(self):
+        moc = _loader.MemObjectCollection()
+        moc.add(1234, 'foo', 100)
+        self.assertEqual([1234, 'foo', None], _scanner.get_referents(moc))
+
+    def test_traverse_multiple_and_parents_and_children(self):
+        moc = _loader.MemObjectCollection()
+        moc.add(1, 'foo', 100)
+        moc.add(2, 'bar', 200, children=[8, 9], parent_list=[10, 11],
+                value='test val')
+        self.assertEqual([1, 'foo', None, 2, 'bar', 'test val', 8, 9, 10, 11],
+                         _scanner.get_referents(moc))
+
 
 class Test_MemObjectProxy(tests.TestCase):
 

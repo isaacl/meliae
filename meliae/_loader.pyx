@@ -1126,3 +1126,26 @@ cdef int _MemObjectProxy_traverse(_MemObjectProxy self, visitproc visit,
     return ret
 
 (<PyTypeObject*>_MemObjectProxy).tp_traverse = <traverseproc>_MemObjectProxy_traverse
+
+
+cdef int MemObjectCollection_traverse(MemObjectCollection self,
+                                      visitproc visit, void *arg) except -1:
+    """Implement a correct tp_traverse because we use hidden members.
+    
+    Cython/Pyrex implement a tp_traverse, but it only handles 'object' members.
+    We use some private pointers to manage things, so we need a custom
+    tp_traverse to let everyone know about it.
+    """
+    cdef int ret
+    cdef int i
+    cdef _MemObject *cur
+
+    ret = 0
+    for i from 0 <= i <= self._table_mask:
+        cur = self._table[i]
+        if cur != NULL and cur != _dummy:
+            ret = _MemObject_traverse(cur, visit, arg)
+            if ret:
+                break
+    return ret
+(<PyTypeObject*>MemObjectCollection).tp_traverse = <traverseproc>MemObjectCollection_traverse
