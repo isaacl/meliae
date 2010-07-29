@@ -540,14 +540,23 @@ class Test_MemObjectProxy(tests.TestCase):
         # When a Proxied object is removed from its Collection, it becomes
         # owned by the Proxy itself, and should be returned from tp_traverse
         mop = self.moc[0]
-        referenced = _scanner.get_referents(mop)
         # At this point, moc still controls the _MemObject
-        self.assertEqual([self.moc], referenced)
+        self.assertEqual([self.moc], _scanner.get_referents(mop))
         # But now, it references everything else, too
         del self.moc[0]
-        referenced = _scanner.get_referents(mop)
         self.assertEqual([self.moc, mop.address, mop.type_str, mop.value],
-                         referenced)
+                         _scanner.get_referents(mop))
+
+    def test_traverse_with_parent_and_children(self):
+        mop = self.moc.add(1, 'my_class', 1234, children=[5,6,7],
+                           parent_list=[8,9,10], value='test str')
+        # While in the moc, the Collection manages the references
+        self.assertEqual([self.moc], _scanner.get_referents(mop))
+        # But once gone, we refer to everything directly
+        del self.moc[1]
+        self.assertEqual([self.moc, mop.address, mop.type_str, mop.value,
+                          5, 6, 7, 8, 9, 10],
+                         _scanner.get_referents(mop))
 
 
 class Test_MemObjectProxyIterRecursiveRefs(tests.TestCase):

@@ -1092,11 +1092,11 @@ cdef int _MemObject_traverse(_MemObject *self, visitproc visit, void *arg):
         ret = visit(self.address, arg)
     if ret == 0 and self.type_str != NULL:
         ret = visit(self.type_str, arg)
+    if ret == 0 and self.value != NULL:
+        ret = visit(self.value, arg)
     if ret == 0:
         # RefList_traverse handles the NULL case
         ret = RefList_traverse(self.child_list, visit, arg)
-    if ret == 0 and self.value != NULL:
-        ret = visit(self.value, arg)
     if ret == 0:
         ret = RefList_traverse(self.parent_list, visit, arg)
     # Note: we *don't* incref the proxy because we know it links back to us. So
