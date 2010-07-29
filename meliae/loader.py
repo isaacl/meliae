@@ -496,8 +496,13 @@ def load(source, using_json=None, show_prog=True, collapse=True):
         if cleanup is not None:
             cleanup()
     if collapse:
+        tstart = time.time()
         manager.compute_parents()
         manager.collapse_instance_dicts()
+        if show_prog:
+            tend = time.time()
+            sys.stderr.write('collapsed in %.1fs\n'
+                             % (tend - tstart,))
     return manager
 
 
