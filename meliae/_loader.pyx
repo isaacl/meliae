@@ -609,7 +609,8 @@ cdef class _MemObjectProxy:
         """Find all objects referenced from this one (including self).
 
         Self will always be the first object returned, in case you want to
-        exclude it (though it can be excluded in the excluding list).
+        exclude it (though it can be excluded in the excluding list). This is
+        done because it is cumbersome to add it back in, but easy to exclude.
 
         :param excluding: This can be any iterable of addresses. We will not
             walk to anything in this list (including self).

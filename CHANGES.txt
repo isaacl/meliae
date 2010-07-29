@@ -18,6 +18,12 @@ Meliae 0.3
   to be useful anyway, better to make it easier to use the useful api.
   (John Arbash Meinel)
 
+* ``obj.iter_recursive_refs()`` can now be used to find all objects
+  referenced from this object (including obj). It can also take an
+  iterable of object addresses to exclude. Which makes it easy to ask,
+  "What objects are accessible from X that aren't accessible from Y?"
+  (John Arbash Meinel)
+
 
 Meliae 0.2.1
 ############
