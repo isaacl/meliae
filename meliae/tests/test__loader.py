@@ -536,6 +536,19 @@ class Test_MemObjectProxy(tests.TestCase):
         # 8: PyObject *proxy
         self.assertSizeOf(5+8, mop, has_gc=True)
 
+    def test_traverse(self):
+        # When a Proxied object is removed from its Collection, it becomes
+        # owned by the Proxy itself, and should be returned from tp_traverse
+        mop = self.moc[0]
+        referenced = _scanner.get_referents(mop)
+        # At this point, moc still controls the _MemObject
+        self.assertEqual([self.moc], referenced)
+        # But now, it references everything else, too
+        del self.moc[0]
+        referenced = _scanner.get_referents(mop)
+        self.assertEqual([self.moc, mop.address, mop.type_str, mop.value],
+                         referenced)
+
 
 class Test_MemObjectProxyIterRecursiveRefs(tests.TestCase):
 

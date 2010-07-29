@@ -22,6 +22,13 @@ cdef extern from "Python.h":
     void *PyMem_Malloc(size_t)
     void PyMem_Free(void *)
 
+    ctypedef int (*visitproc)(PyObject *, void *)
+    ctypedef int (*traverseproc)(PyObject *, visitproc, void *)
+    ctypedef struct PyTypeObject:
+        # hashfunc tp_hash
+        # richcmpfunc tp_richcompare
+        traverseproc tp_traverse
+
     long PyObject_Hash(PyObject *) except -1
 
     object PyList_New(Py_ssize_t)
@@ -183,7 +190,7 @@ cdef struct _MemObject:
     RefList *parent_list
     unsigned long total_size
     # This is an uncounted ref to a _MemObjectProxy. _MemObjectProxy also has a
-    # refreence to this object, so when it disappears it can set the reference
+    # reference to this object, so when it disappears it can set the reference
     # to NULL.
     PyObject *proxy
 
@@ -1047,3 +1054,75 @@ cdef class _MOPReferencedIterator:
             return next_proxy
         # if we got this far, then we don't have anything left:
         raise StopIteration()
+
+
+cdef int RefList_traverse(RefList *self, visitproc visit, void *arg):
+    """Equivalent of tp_traverse for a RefList.
+
+    RefList isn't a fully fledged python object/type, but since it can hold
+    counted references to python objects, we want the containing objects to be
+    able to tp_traverse to them.
+    """
+    cdef int ret
+    cdef long i
+
+    ret = 0
+    if self == NULL:
+        return ret
+    for i from 0 <= i < self.size:
+        ret = visit(self.refs[i], arg)
+        if ret:
+            return ret
+    return ret
+
+
+cdef int _MemObject_traverse(_MemObject *self, visitproc visit, void *arg):
+    """Equivalent idea of tp_traverse for _MemObject.
+
+    _MemObject isn't a fully fledged python object, but it can refer to python
+    objects. So we create a traverse function for it, so that gc and Meliae
+    itself can find the referenced objects.
+    """
+    cdef int ret
+
+    ret = 0
+    if self == NULL:
+        return ret
+    if ret == 0 and self.address != NULL:
+        ret = visit(self.address, arg)
+    if ret == 0 and self.type_str != NULL:
+        ret = visit(self.type_str, arg)
+    if ret == 0:
+        # RefList_traverse handles the NULL case
+        ret = RefList_traverse(self.child_list, visit, arg)
+    if ret == 0 and self.value != NULL:
+        ret = visit(self.value, arg)
+    if ret == 0:
+        ret = RefList_traverse(self.parent_list, visit, arg)
+    # Note: we *don't* incref the proxy because we know it links back to us. So
+    #       we don't tp_traverse to it, because we don't want gc thinking it
+    #       has enough references to destroy the object.
+    return ret
+
+
+cdef int _MemObjectProxy_traverse(_MemObjectProxy self, visitproc visit,
+                                  void *arg) except -1:
+    """Implement a correct tp_traverse because we use hidden members.
+    
+    Cython/Pyrex implement a tp_traverse, but it only handles 'object' members.
+    We use some private pointers to manage things, so we need a custom
+    tp_traverse to let everyone know about it.
+    """
+    # The specific detail is that _MemObjectProxy can sometimes control the
+    # reference to a _MemObject (if it was removed from a collection while the
+    # proxy was still alive). And that _MemObject structure can hold onto
+    # references to other real python objects.
+    cdef int ret
+
+    ret = 0
+    ret = visit(<PyObject *>self.collection, arg)
+    if ret == 0 and self._managed_obj != NULL:
+        ret = _MemObject_traverse(self._managed_obj, visit, arg)
+    return ret
+
+(<PyTypeObject*>_MemObjectProxy).tp_traverse = <traverseproc>_MemObjectProxy_traverse
