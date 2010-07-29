@@ -643,7 +643,8 @@ cdef class MemObjectCollection:
         cdef _MemObject *cur
         cdef long my_size
         my_size = (sizeof(MemObjectCollection)
-            + (sizeof(_MemObject**) * (self._table_mask + 1)))
+            + (sizeof(_MemObject**) * (self._table_mask + 1))
+            + (sizeof(_MemObject) * self._active))
         for i from 0 <= i <= self._table_mask:
             cur = self._table[i]
             if cur != NULL and cur != _dummy:

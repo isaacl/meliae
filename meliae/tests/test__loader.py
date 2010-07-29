@@ -209,19 +209,35 @@ class TestMemObjectCollection(tests.TestCase):
         # 3 4-byte int attributes
         self.assertSizeOf(4+1024, moc, extra_size=3*4, has_gc=False)
 
+    def test__sizeof__one_item(self):
+        moc = _loader.MemObjectCollection()
+        # We also track the size of the referenced _MemObject entries
+        # Which is:
+        # 1: PyObject *address
+        # 2: PyObject *type_str
+        # 3: long size
+        # 4: *child_list
+        # 5: *value
+        # 6: *parent_list
+        # 7: ulong total_size
+        # 8: *proxy
+        moc.add(0, 'foo', 100)
+        self.assertSizeOf(4+1024+8, moc, extra_size=3*4, has_gc=False)
+
     def test__sizeof__with_reflists(self):
         moc = _loader.MemObjectCollection()
         # We should assign the memory for ref-lists to the container. A
         # ref-list allocates the number of entries + 1
+        # Each _memobject also takes up
         moc.add(0, 'foo', 100, children=[1234], parent_list=[3456, 7890])
-        self.assertSizeOf(4+1024+2+3, moc, extra_size=3*4, has_gc=False)
+        self.assertSizeOf(4+1024+8+2+3, moc, extra_size=3*4, has_gc=False)
 
     def test__sizeof__with_dummy(self):
         moc = _loader.MemObjectCollection()
         moc.add(0, 'foo', 100, children=[1234], parent_list=[3456, 7890])
         moc.add(1, 'foo', 100, children=[1234], parent_list=[3456, 7890])
         del moc[1]
-        self.assertSizeOf(4+1024+2+3, moc, extra_size=3*4, has_gc=False)
+        self.assertSizeOf(4+1024+8+2+3, moc, extra_size=3*4, has_gc=False)
 
 
 class Test_MemObjectProxy(tests.TestCase):
