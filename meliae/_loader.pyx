@@ -646,7 +646,7 @@ cdef class MemObjectCollection:
             + (sizeof(_MemObject**) * (self._table_mask + 1)))
         for i from 0 <= i <= self._table_mask:
             cur = self._table[i]
-            if cur != NULL:
+            if cur != NULL and cur != _dummy:
                 my_size += (sizeof_RefList(cur.child_list)
                             + sizeof_RefList(cur.parent_list))
         return my_size

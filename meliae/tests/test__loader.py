@@ -216,6 +216,13 @@ class TestMemObjectCollection(tests.TestCase):
         moc.add(0, 'foo', 100, children=[1234], parent_list=[3456, 7890])
         self.assertSizeOf(4+1024+2+3, moc, extra_size=3*4, has_gc=False)
 
+    def test__sizeof__with_dummy(self):
+        moc = _loader.MemObjectCollection()
+        moc.add(0, 'foo', 100, children=[1234], parent_list=[3456, 7890])
+        moc.add(1, 'foo', 100, children=[1234], parent_list=[3456, 7890])
+        del moc[1]
+        self.assertSizeOf(4+1024+2+3, moc, extra_size=3*4, has_gc=False)
+
 
 class Test_MemObjectProxy(tests.TestCase):
 
