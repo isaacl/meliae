@@ -2,3 +2,4 @@
 ./meliae/_intset.c
 ./meliae/_loader.c
 ./meliae/_scanner.c
+./tags

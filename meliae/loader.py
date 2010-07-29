@@ -316,30 +316,8 @@ class ObjManager(object):
 
     def compute_total_size(self, obj):
         """Sum the size of all referenced objects (recursively)."""
-        pending_descendents = list(obj.children)
-        seen = _intset.IDSet()
-        seen.add(obj.address)
-        total_size = obj.size
-        while pending_descendents:
-            next_ref = pending_descendents.pop()
-            if next_ref in seen:
-                continue
-            seen.add(next_ref)
-            next_obj = self.objs.get(next_ref, None)
-            if next_obj is None:
-                continue
-            # type and frame types tend to cause us to recurse into
-            # everything. So for now, when we encounter them, don't add
-            # their references
-            total_size += next_obj.size
-            pending_descendents.extend([ref for ref in next_obj.children
-                                             if ref not in seen])
-        ## count = len(seen)
-        ## # This single object references more than 10% of all objects, and
-        ## # expands to more that 10x its direct references
-        ## if count > obj.num_refs * 10 and count > break_on:
-        ##     import pdb; pdb.set_trace()
-        obj.total_size = total_size
+        obj.total_size = (obj.size
+            + sum(c.size for c in obj.iter_recursive_refs()))
         return obj
 
     def summarize(self):

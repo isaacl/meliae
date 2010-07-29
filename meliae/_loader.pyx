@@ -605,6 +605,12 @@ cdef class _MemObjectProxy:
             as_dict[key] = val
         return as_dict
 
+    def iter_recursive_refs(self):
+        cdef _MOPReferencedIterator iterator
+        iterator = _MOPReferencedIterator(self)
+        return iterator
+
+
 
 cdef class MemObjectCollection:
     """Track a bunch of _MemObject instances."""
@@ -975,3 +981,56 @@ cdef class _MOCValueIterator:
                 ' %d, %d %d' % (<int>cur, self.table_pos,
                                 self.collection._table_mask))
         return self.collection._proxy_for(<object>cur.address, cur)
+
+
+cdef class _MOPReferencedIterator:
+    """Iterate over all the children referenced from this object."""
+
+    cdef MemObjectCollection collection
+    cdef object seen_addresses
+    cdef list pending_addresses
+    cdef int pending_offset
+
+    def __init__(self, proxy):
+        cdef _MemObjectProxy c_proxy
+
+        from meliae import _intset
+        c_proxy = proxy
+        self.collection = c_proxy.collection
+        self.seen_addresses = _intset.IDSet()
+        self.seen_addresses.add(c_proxy.address)
+        self.pending_addresses = list(c_proxy.children)
+        self.pending_offset = len(self.pending_addresses) - 1
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        while self.pending_offset >= 0:
+            next_address = self.pending_addresses[self.pending_offset]
+            self.pending_offset -= 1
+            # Avoid letting the pending addresses queue remain at its largest
+            # size forever. If it has more that 50% waste, and it is 'big',
+            # shrink it. Leave it a little room to grow, though.
+            if (self.pending_offset > 50
+                and len(self.pending_addresses) > 2*self.pending_offset):
+                self.pending_addresses = self.pending_addresses[
+                    :self.pending_offset+10]
+            if next_address in self.seen_addresses:
+                continue
+            self.seen_addresses.add(next_address)
+            next_proxy = self.collection.get(next_address)
+            if next_proxy is None:
+                continue
+            # Queue up the children of this object
+            for c in next_proxy.children:
+                if c in self.seen_addresses:
+                    continue
+                self.pending_offset += 1
+                if self.pending_offset >= len(self.pending_addresses):
+                    self.pending_addresses.append(c)
+                else:
+                    self.pending_addresses[self.pending_offset] = c
+            return next_proxy
+        # if we got this far, then we don't have anything left:
+        raise StopIteration()

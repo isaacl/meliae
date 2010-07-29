@@ -512,3 +512,38 @@ class Test_MemObjectProxy(tests.TestCase):
         # 7: unsigned long total_size
         # 8: PyObject *proxy
         self.assertSizeOf(5+8, mop, has_gc=True)
+
+
+class Test_MemObjectProxyIterRecursiveRefs(tests.TestCase):
+
+    def setUp(self):
+        super(Test_MemObjectProxyIterRecursiveRefs, self).setUp()
+        self.moc = _loader.MemObjectCollection()
+        self.moc.add(1024, 'bar', 200)
+        self.moc.add(0, 'foo', 100)
+        self.moc.add(255, 'baz', 300)
+
+    def assertIterRecursiveRefs(self, addresses, obj):
+        self.assertEqual(addresses,
+                         [o.address for o in obj.iter_recursive_refs()])
+
+    def test_no_refs(self):
+        self.assertIterRecursiveRefs([], self.moc[1024])
+
+    def test_single_depth_refs(self):
+        obj = self.moc.add(1, 'test', 1234, children=[1024])
+        self.assertIterRecursiveRefs([1024], obj)
+
+    def test_deep_refs(self):
+        obj = self.moc.add(1, '1', 1234, children=[2])
+        self.moc.add(2, '2', 1234, children=[3])
+        self.moc.add(3, '3', 1234, children=[4])
+        self.moc.add(4, '4', 1234, children=[5])
+        self.moc.add(5, '5', 1234, children=[6])
+        self.moc.add(6, '6', 1234, children=[])
+        self.assertIterRecursiveRefs([2, 3, 4, 5, 6], obj)
+
+    def test_self_referenced(self):
+        self.moc.add(1, 'test', 1234, children=[1024, 2])
+        obj = self.moc.add(2, 'test2', 1234, children=[1])
+        self.assertIterRecursiveRefs([1, 1024], obj)
