@@ -605,9 +605,18 @@ cdef class _MemObjectProxy:
             as_dict[key] = val
         return as_dict
 
-    def iter_recursive_refs(self):
+    def iter_recursive_refs(self, excluding=None):
+        """Find all objects referenced from this one (including self).
+
+        Self will always be the first object returned, in case you want to
+        exclude it (though it can be excluded in the excluding list).
+
+        :param excluding: This can be any iterable of addresses. We will not
+            walk to anything in this list (including self).
+        :return: Iterator over all objects that can be reached.
+        """
         cdef _MOPReferencedIterator iterator
-        iterator = _MOPReferencedIterator(self)
+        iterator = _MOPReferencedIterator(self, excluding)
         return iterator
 
 
@@ -991,16 +1000,18 @@ cdef class _MOPReferencedIterator:
     cdef list pending_addresses
     cdef int pending_offset
 
-    def __init__(self, proxy):
+    def __init__(self, proxy, excluding=None):
         cdef _MemObjectProxy c_proxy
 
         from meliae import _intset
         c_proxy = proxy
         self.collection = c_proxy.collection
-        self.seen_addresses = _intset.IDSet()
-        self.seen_addresses.add(c_proxy.address)
-        self.pending_addresses = list(c_proxy.children)
-        self.pending_offset = len(self.pending_addresses) - 1
+        if excluding is not None:
+            self.seen_addresses = _intset.IDSet(excluding)
+        else:
+            self.seen_addresses = _intset.IDSet()
+        self.pending_addresses = [c_proxy.address]
+        self.pending_offset = 0
 
     def __iter__(self):
         return self

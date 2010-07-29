@@ -316,8 +316,7 @@ class ObjManager(object):
 
     def compute_total_size(self, obj):
         """Sum the size of all referenced objects (recursively)."""
-        obj.total_size = (obj.size
-            + sum(c.size for c in obj.iter_recursive_refs()))
+        obj.total_size = sum(c.size for c in obj.iter_recursive_refs())
         return obj
 
     def summarize(self):

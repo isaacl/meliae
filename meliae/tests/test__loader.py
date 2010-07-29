@@ -523,16 +523,16 @@ class Test_MemObjectProxyIterRecursiveRefs(tests.TestCase):
         self.moc.add(0, 'foo', 100)
         self.moc.add(255, 'baz', 300)
 
-    def assertIterRecursiveRefs(self, addresses, obj):
+    def assertIterRecursiveRefs(self, addresses, obj, excluding=None):
         self.assertEqual(addresses,
-                         [o.address for o in obj.iter_recursive_refs()])
+            [o.address for o in obj.iter_recursive_refs(excluding=excluding)])
 
     def test_no_refs(self):
-        self.assertIterRecursiveRefs([], self.moc[1024])
+        self.assertIterRecursiveRefs([1024], self.moc[1024])
 
     def test_single_depth_refs(self):
         obj = self.moc.add(1, 'test', 1234, children=[1024])
-        self.assertIterRecursiveRefs([1024], obj)
+        self.assertIterRecursiveRefs([1, 1024], obj)
 
     def test_deep_refs(self):
         obj = self.moc.add(1, '1', 1234, children=[2])
@@ -541,9 +541,33 @@ class Test_MemObjectProxyIterRecursiveRefs(tests.TestCase):
         self.moc.add(4, '4', 1234, children=[5])
         self.moc.add(5, '5', 1234, children=[6])
         self.moc.add(6, '6', 1234, children=[])
-        self.assertIterRecursiveRefs([2, 3, 4, 5, 6], obj)
+        self.assertIterRecursiveRefs([1, 2, 3, 4, 5, 6], obj)
 
     def test_self_referenced(self):
         self.moc.add(1, 'test', 1234, children=[1024, 2])
         obj = self.moc.add(2, 'test2', 1234, children=[1])
-        self.assertIterRecursiveRefs([1, 1024], obj)
+        self.assertIterRecursiveRefs([2, 1, 1024], obj)
+
+    def test_excluding(self):
+        obj = self.moc.add(1, 'test', 1234, children=[1024])
+        self.assertIterRecursiveRefs([1], obj, excluding=[1024])
+
+    def test_excluding_nested(self):
+        self.moc.add(1, 'test', 1234, children=[1024])
+        obj = self.moc.add(2, 'test', 1234, children=[1])
+        self.assertIterRecursiveRefs([2, 1, 1024], obj)
+        self.assertIterRecursiveRefs([2], obj, excluding=[1])
+
+    def test_excluding_wraparound(self):
+        self.moc.add(1, 'test', 1234, children=[1024])
+        self.moc.add(2, 'test', 1234, children=[1024])
+        obj = self.moc.add(3, 'test', 1234, children=[1, 2])
+        self.assertIterRecursiveRefs([3, 2, 1024, 1], obj)
+        self.assertIterRecursiveRefs([3, 2, 1024], obj, excluding=[1])
+        refed = (o.address for o in self.moc[1].iter_recursive_refs())
+        self.assertIterRecursiveRefs([3, 2], obj, excluding=refed)
+
+    def test_excluding_self(self):
+        self.assertIterRecursiveRefs([], self.moc[1024], excluding=[1024])
+        obj = self.moc.add(1, '1', 1234, children=[1024])
+        self.assertIterRecursiveRefs([], obj, excluding=[1])
