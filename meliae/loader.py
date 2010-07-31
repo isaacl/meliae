@@ -319,9 +319,21 @@ class ObjManager(object):
         obj.total_size = sum(c.size for c in obj.iter_recursive_refs())
         return obj
 
-    def summarize(self):
+    def summarize(self, obj=None, excluding=None):
+        """Summarize the objects referenced from this one.
+
+        :param obj: Given obj as the root object, aggregate the count and size
+            of the types of each referenced object.
+            If not supplied, we will walk all objects.
+        :param excluding: A list of addresses to exclude from the aggregate
+        :return: An _ObjSummary() of this subset of the graph
+        """
         summary = _ObjSummary()
-        for obj in self.objs.itervalues():
+        if obj is None:
+            objs = self.objs.itervalues()
+        else:
+            objs = obj.iter_recursive_refs(excluding=excluding)
+        for obj in objs:
             summary._add(obj)
         return summary
 

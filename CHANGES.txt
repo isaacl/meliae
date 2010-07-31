@@ -24,6 +24,12 @@ Meliae 0.3
   "What objects are accessible from X that aren't accessible from Y?"
   (John Arbash Meinel)
 
+* ``ObjectManager.summarize()`` can now take an object and an exclusion
+  list, and summarize the referenced objects. This can be quite useful
+  when you want to look at just a subset of the graph. The syntax is
+  ``ObjectManager.summarize(obj, [not_address1, not_address2])``.
+  (John Arbash Meinel)
+
 
 Meliae 0.2.1
 ############

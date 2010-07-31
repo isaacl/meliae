@@ -391,3 +391,19 @@ class TestObjManager(tests.TestCase):
         manager = loader.load(_intern_dict_dump, show_prog=False)
         obj = manager.guess_intern_dict()
         self.assertEqual(8, obj.address)
+
+    def test_summarize_refs(self):
+        manager = loader.load(_example_dump, show_prog=False)
+        summary = manager.summarize(manager[2])
+        # Note that the dict itself is not excluded from the summary
+        self.assertEqual(['dict', 'int', 'str', 'tuple'],
+                         sorted(summary.type_summaries.keys()))
+        self.assertEqual(197, summary.total_size)
+
+    def test_summarize_excluding(self):
+        manager = loader.load(_example_dump, show_prog=False)
+        summary = manager.summarize(manager[2], excluding=[4, 5])
+        # No ints when they are explicitly filtered
+        self.assertEqual(['dict', 'str', 'tuple'],
+                         sorted(summary.type_summaries.keys()))
+        self.assertEqual(173, summary.total_size)
