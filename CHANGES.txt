@@ -30,6 +30,12 @@ Meliae 0.3
   ``ObjectManager.summarize(obj, [not_address1, not_address2])``.
   (John Arbash Meinel)
 
+* ``obj.all()`` and ``obj.compute_total_size()`` helpers. These let you
+  get the set of referenced objects matching the type (like
+  ``om.get_all()``). But they *also* allow you to pass an exclusion
+  list, so you can only get things reachable from here and not
+  reachable from there. (John Arbash Meinel)
+
 
 Meliae 0.2.1
 ############

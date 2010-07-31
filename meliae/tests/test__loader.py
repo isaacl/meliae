@@ -576,6 +576,22 @@ class Test_MemObjectProxy(tests.TestCase):
                           5, 6, 7, 8, 9, 10],
                          _scanner.get_referents(mop))
 
+    def test_compute_total_size(self):
+        obj = self.moc.add(1, 'test', 1234, children=[0])
+        obj = self.moc.add(2, 'other', 4567, children=[1])
+        self.assertEqual(1234+4567+100, obj.compute_total_size())
+        self.assertEqual(1234+4567, obj.compute_total_size(excluding=[0]))
+
+    def test_all(self):
+        self.moc.add(1, 'foo', 1234, children=[0])
+        obj = self.moc.add(2, 'other', 4567, children=[1])
+        self.assertEqual([1, 0], [o.address for o in obj.all('foo')])
+        self.assertEqual([1],
+                         [o.address for o in obj.all('foo', excluding=[0])])
+        # Excluding 1 actually prevents us from walking further
+        self.assertEqual([],
+                         [o.address for o in obj.all('foo', excluding=[1])])
+
 
 class Test_MemObjectProxyIterRecursiveRefs(tests.TestCase):
 

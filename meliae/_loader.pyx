@@ -627,6 +627,42 @@ cdef class _MemObjectProxy:
         iterator = _MOPReferencedIterator(self, excluding)
         return iterator
 
+    def compute_total_size(self, excluding=None):
+        """Compute the number of bytes of this and all referenced objects.
+
+        This layers on top of iter_recursive_refs to give just the interesting
+        bits.
+
+        :return: total_size, this will also be set on self.
+        """
+        cdef _MOPReferencedIterator iterator
+        cdef _MemObjectProxy item
+        cdef unsigned long total_size
+        total_size = 0
+        iterator = self.iter_recursive_refs(excluding=excluding)
+        for item in iterator:
+            total_size += item._obj.size
+        self._obj.total_size = total_size
+        return self.total_size
+
+    def all(self, type_str, excluding=None):
+        """Retrieve a list of all the referenced items matching type_str.
+
+        :param type_str: Children must match this type string.
+        :param excluding: See iter_recursive_refs
+        :return: A list of all entries, sorted with the largest entries first.
+        """
+        cdef list all
+        all = []
+        for item in self.iter_recursive_refs(excluding=excluding):
+            if item.type_str == type_str:
+                all.append(item)
+        all.sort(key=_all_sort_key, reverse=True)
+        return all
+
+
+def _all_sort_key(proxy_obj):
+    return (proxy_obj.size, len(proxy_obj), proxy_obj.num_parents)
 
 
 cdef class MemObjectCollection:
