@@ -14,6 +14,6 @@
 
 """A simple way to dump memory consumption of a running python program."""
 
-version_info = (0, 3, 0, 'final', 0)
+version_info = (0, 4, 0, 'dev', 0)
 __version__ = '.'.join(map(str, version_info))
 
