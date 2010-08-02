@@ -8,7 +8,11 @@ Meliae Changes
 Meliae 0.3
 ##########
 
-:0.3: (not released yet)
+:0.3: 2010-08-02
+
+The main update is the ability to do more queries on a subset of
+the object graph. ``om.summarize(starting_at, excluding=[address])``
+lets you find out what is more directly "owned" by a given object.
 
 * Add ``__sizeof__`` members to a lot of the core classes (IntSet,
   etc.) (John Arbash Meinel)
