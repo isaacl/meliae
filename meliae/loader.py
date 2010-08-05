@@ -366,7 +366,7 @@ class ObjManager(object):
         total = len(self.objs)
         tlast = timer()-20
         to_be_removed = set()
-        for item_idx, (address, obj) in enumerate(self.objs.iteritems()):
+        for item_idx, obj in enumerate(self.objs.itervalues()):
             if obj.type_str in ('str', 'dict', 'tuple', 'list', 'type',
                                 'function', 'wrapper_descriptor',
                                 'code', 'classobj', 'int',
@@ -400,9 +400,6 @@ class ObjManager(object):
                 else:
                     continue
                 extra_refs = [type_obj.address]
-            if (dict_obj.num_parents != 1
-                or dict_obj.parents[0] != address):
-                continue
             collapsed += 1
             # We found an instance \o/
             new_refs = list(dict_obj.children)
@@ -509,7 +506,6 @@ def load(source, using_json=None, show_prog=True, collapse=True):
             cleanup()
     if collapse:
         tstart = time.time()
-        manager.compute_parents()
         manager.collapse_instance_dicts()
         if show_prog:
             tend = time.time()
@@ -570,6 +566,7 @@ def iter_objs(source, using_json=False, show_prog=False, input_size=0,
             sys.stderr.write(
                 'loading... line %d, %d objs, %5.1f / %5.1f MiB read in %.1fs\r'
                 % (line_num, len(objs), mb_read, input_mb, tdelta))
+    del temp_cache
     if show_prog:
         mb_read = bytes_read / 1024. / 1024
         tdelta = timer() - tstart
