@@ -223,7 +223,7 @@ class TestRemoveExpensiveReferences(tests.TestCase):
 class TestMemObj(tests.TestCase):
 
     def test_to_json(self):
-        manager = loader.load(_example_dump, show_prog=False)
+        manager = loader.load(_example_dump, show_prog=False, collapse=False)
         objs = manager.objs.values()
         objs.sort(key=lambda x:x.address)
         expected = [
@@ -243,15 +243,13 @@ class TestObjManager(tests.TestCase):
 
     def test_compute_parents(self):
         manager = loader.load(_example_dump, show_prog=False)
-        manager.compute_parents()
         objs = manager.objs
         self.assertEqual((), objs[1].parents)
-        self.assertEqual([1, 8], objs[2].parents)
         self.assertEqual([1, 3], objs[3].parents)
-        self.assertEqual([2, 3, 7], objs[4].parents)
-        self.assertEqual([2, 3, 7], objs[5].parents)
-        self.assertEqual([2], objs[6].parents)
-        self.assertEqual([2], objs[7].parents)
+        self.assertEqual([3, 7, 8], objs[4].parents)
+        self.assertEqual([3, 7, 8], objs[5].parents)
+        self.assertEqual([8], objs[6].parents)
+        self.assertEqual([8], objs[7].parents)
         self.assertEqual((), objs[8].parents)
 
     def test_compute_referrers(self):
@@ -271,19 +269,18 @@ class TestObjManager(tests.TestCase):
         finally:
             warn.trap_warnings(old_func)
         self.assertEqual((), objs[1].parents)
-        self.assertEqual([1, 8], objs[2].parents)
         self.assertEqual([1, 3], objs[3].parents)
-        self.assertEqual([2, 3, 7], objs[4].parents)
-        self.assertEqual([2, 3, 7], objs[5].parents)
-        self.assertEqual([2], objs[6].parents)
-        self.assertEqual([2], objs[7].parents)
+        self.assertEqual([3, 7, 8], objs[4].parents)
+        self.assertEqual([3, 7, 8], objs[5].parents)
+        self.assertEqual([8], objs[6].parents)
+        self.assertEqual([8], objs[7].parents)
         self.assertEqual((), objs[8].parents)
 
     def test_compute_total_size(self):
         manager = loader.load(_example_dump, show_prog=False)
         objs = manager.objs
-        manager.compute_total_size(objs[1])
-        self.assertEqual(261, objs[1].total_size)
+        manager.compute_total_size(objs[8])
+        self.assertEqual(257, objs[8].total_size)
 
     def test_compute_total_size_missing_ref(self):
         lines = list(_example_dump)
@@ -394,16 +391,16 @@ class TestObjManager(tests.TestCase):
 
     def test_summarize_refs(self):
         manager = loader.load(_example_dump, show_prog=False)
-        summary = manager.summarize(manager[2])
-        # Note that the dict itself is not excluded from the summary
-        self.assertEqual(['dict', 'int', 'str', 'tuple'],
+        summary = manager.summarize(manager[8])
+        # Note that the module is included in the summary
+        self.assertEqual(['int', 'module', 'str', 'tuple'],
                          sorted(summary.type_summaries.keys()))
-        self.assertEqual(197, summary.total_size)
+        self.assertEqual(257, summary.total_size)
 
     def test_summarize_excluding(self):
         manager = loader.load(_example_dump, show_prog=False)
-        summary = manager.summarize(manager[2], excluding=[4, 5])
+        summary = manager.summarize(manager[8], excluding=[4, 5])
         # No ints when they are explicitly filtered
-        self.assertEqual(['dict', 'str', 'tuple'],
+        self.assertEqual(['module', 'str', 'tuple'],
                          sorted(summary.type_summaries.keys()))
-        self.assertEqual(173, summary.total_size)
+        self.assertEqual(233, summary.total_size)
