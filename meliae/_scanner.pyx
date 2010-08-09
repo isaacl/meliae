@@ -39,6 +39,7 @@ cdef extern from "_scanner_core.h":
     void _dump_object_info(write_callback write, void *callee_data,
                            object c_obj, object nodump, int recurse)
     object _get_referents(object c_obj)
+    object _get_special_case_dict()
 
 
 _word_size = sizeof(Py_ssize_t)
@@ -111,3 +112,40 @@ def get_referents(object obj):
     tp_traverse.
     """
     return _get_referents(obj)
+
+
+def add_special_size(object tp_name, object size_32, object size_64):
+    """Special case a given object size.
+
+    This is only meant to be used for objects we don't already handle or which
+    don't implement __sizeof__ (those are checked before this check happens).
+
+    This is meant for things like zlib.Compress which allocates a lot of
+    internal buffers, which are not easily accessible (but can be
+    approximated).  The gc header should not be included in this size, it will
+    be added at runtime.
+
+    Setting the value to None will remove the value.
+
+    :param tp_name: The type string we care about (such as 'zlib.Compress').
+        This will be matched against object->type->tp_name.
+    :param size_32: The size of the object if sizeof(long) is 32-bits.
+    :param size_64: The size of the object if sizeof(long) is 64-bits.
+    :return: None
+    """
+    special_dict = _get_special_case_dict()
+    if _word_size == 4:
+        sz = size_32
+    elif _word_size == 8:
+        sz = size_64
+    else:
+        raise ValueError('Unknown _word_size: %d' % (_word_size,))
+    if sz is None:
+        if tp_name in special_dict:
+            del special_dict[tp_name]
+    else:
+        special_dict[tp_name] = sz
+
+
+add_special_size('zlib.Compress', 1234, 5678)
+add_special_size('zlib.Decompress', 1234, 5678)

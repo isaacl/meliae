@@ -170,6 +170,18 @@ class TestSizeOf(tests.TestCase):
         # back to the original size
         self.assertSizeOf(4, CustomSize(-1), has_gc=True)
 
+    def test_sizeof_special(self):
+        class CustomWithoutSizeof(object):
+            pass
+        obj = CustomWithoutSizeof()
+        self.assertSizeOf(4, obj)
+        _scanner.add_special_size('CustomWithoutSizeof', 800, 1600)
+        try:
+            self.assertSizeOf(200, obj)
+        finally:
+            _scanner.add_special_size('CustomWithoutSizeof', None, None)
+        self.assertSizeOf(4, obj)
+
 
 def _string_to_json(s):
     out = ['"']

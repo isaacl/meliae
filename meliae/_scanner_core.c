@@ -60,12 +60,14 @@ static void _write_to_ref_info(struct ref_info *info, const char *fmt_string, ..
 #else
 static void _write_to_ref_info(struct ref_info *info, const char *fmt_string, ...);
 #endif
+static PyObject * _get_specials();
 
 /* The address of the last thing we dumped. Stuff like dumping the string
  * interned dictionary will dump the same string 2x in a row. This helps
  * prevent that.
  */
 static PyObject *_last_dumped = NULL;
+static PyObject *_special_case_dict = NULL;
 
 void
 _clear_last_dumped()
@@ -125,7 +127,7 @@ _size_of_from__sizeof__(PyObject *c_obj)
         PyErr_Clear();
         return -1;
     }
-    // There is one trick left. Namely, __sizeof__ doesn't seem to include the
+    // There is one trick left. Namely, __sizeof__ doesn't include the
     // GC overhead, so let's add that back in
     if (PyType_HasFeature(c_obj->ob_type, Py_TPFLAGS_HAVE_GC)) {
         size += sizeof(PyGC_Head);
@@ -527,7 +529,8 @@ _append_object(PyObject *visiting, void* data)
 /**
  * Return a PyList of all objects referenced via tp_traverse.
  */
-PyObject *_get_referents(PyObject *c_obj)
+PyObject *
+_get_referents(PyObject *c_obj)
 {
     PyObject *lst;
 
@@ -542,4 +545,23 @@ PyObject *_get_referents(PyObject *c_obj)
         Py_TYPE(c_obj)->tp_traverse(c_obj, _append_object, lst);
     }
     return lst;
+}
+
+static PyObject *
+_get_specials()
+{
+    if (_special_case_dict == NULL) {
+        _special_case_dict = PyDict_New();
+    }
+    return _special_case_dict;
+}
+
+PyObject *
+_get_special_case_dict()
+{
+    PyObject *ret;
+
+    ret = _get_specials();
+    Py_XINCREF(ret);
+    return ret;
 }
