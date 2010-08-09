@@ -64,11 +64,8 @@ The name is simply a fun word (means Ash-wood Nymph).
     try:
         from Cython.Distutils import build_ext
     except ImportError:
-        try:
-            from Pyrex.Distutils import build_ext
-        except ImportError:
-            print "We depend on having Cython or Pyrex installed."
-            return
+        print "We require Cython to be installed."
+        return
 
     kwargs["cmdclass"] = {"build_ext": build_ext}
     ext.append(Extension("meliae._scanner",

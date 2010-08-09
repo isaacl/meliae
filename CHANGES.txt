@@ -10,6 +10,10 @@ Meliae 0.4
 
 :0.4: (not released yet)
 
+* We now only compile against Cython. I've finally hit some issues that
+  I don't want to work around. Namely sizeof(Class) doesn't work under
+  even pyrex 0.9.9. (John Arbash Meinel)
+
 Meliae 0.3
 ##########
 
