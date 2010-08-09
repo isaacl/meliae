@@ -246,8 +246,8 @@ class TestObjManager(tests.TestCase):
         objs = manager.objs
         self.assertEqual((), objs[1].parents)
         self.assertEqual([1, 3], objs[3].parents)
-        self.assertEqual([3, 7, 8], objs[4].parents)
-        self.assertEqual([3, 7, 8], objs[5].parents)
+        self.assertEqual([3, 7, 8], sorted(objs[4].parents))
+        self.assertEqual([3, 7, 8], sorted(objs[5].parents))
         self.assertEqual([8], objs[6].parents)
         self.assertEqual([8], objs[7].parents)
         self.assertEqual((), objs[8].parents)
@@ -270,11 +270,19 @@ class TestObjManager(tests.TestCase):
             warn.trap_warnings(old_func)
         self.assertEqual((), objs[1].parents)
         self.assertEqual([1, 3], objs[3].parents)
-        self.assertEqual([3, 7, 8], objs[4].parents)
-        self.assertEqual([3, 7, 8], objs[5].parents)
+        self.assertEqual([3, 7, 8], sorted(objs[4].parents))
+        self.assertEqual([3, 7, 8], sorted(objs[5].parents))
         self.assertEqual([8], objs[6].parents)
         self.assertEqual([8], objs[7].parents)
         self.assertEqual((), objs[8].parents)
+
+    def test_compute_parents_ignore_repeated(self):
+        manager = loader.load(_intern_dict_dump, show_prog=False)
+        str_5 = manager[5]
+        manager.compute_parents()
+        # Each of these refers to str_5 multiple times, but they should only
+        # show up 1 time in the parent list.
+        self.assertEqual([6, 7, 8], sorted(str_5.parents))
 
     def test_compute_total_size(self):
         manager = loader.load(_example_dump, show_prog=False)

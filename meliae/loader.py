@@ -286,7 +286,8 @@ class ObjManager(object):
                     elif type(refs) in (int, long):
                         obj.parents = (refs,)
                     else:
-                        obj.parents = refs
+                        # We use a set() to remove duplicate parents
+                        obj.parents = set(refs)
         finally:
             if enabled:
                 gc.enable()
