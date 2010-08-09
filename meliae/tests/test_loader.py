@@ -279,10 +279,33 @@ class TestObjManager(tests.TestCase):
     def test_compute_parents_ignore_repeated(self):
         manager = loader.load(_intern_dict_dump, show_prog=False)
         str_5 = manager[5]
-        manager.compute_parents()
         # Each of these refers to str_5 multiple times, but they should only
         # show up 1 time in the parent list.
         self.assertEqual([6, 7, 8], sorted(str_5.parents))
+
+    def test_compute_parents_no_parents(self):
+        manager = loader.load(_intern_dict_dump, show_prog=False, max_parents=0)
+        str_5 = manager[5]
+        # Each of these refers to str_5 multiple times, but they should only
+        # show up 1 time in the parent list.
+        self.assertEqual([], sorted(str_5.parents))
+
+    def test_compute_parents_many_parents(self):
+        content = [
+'{"address": 2, "type": "str", "size": 25, "len": 1, "value": "a", "refs": []}',
+]
+        for x in xrange(200):
+            content.append('{"address": %d, "type": "tuple", "size": 20,'
+                           ' "len": 2, "refs": [2, 2]}' % (x+100))
+        # By default, we only track 100 parents
+        manager = loader.load(content, show_prog=False)
+        self.assertEqual(100, manager[2].num_parents)
+        manager = loader.load(content, show_prog=False, max_parents=0)
+        self.assertEqual(0, manager[2].num_parents)
+        manager = loader.load(content, show_prog=False, max_parents=-1)
+        self.assertEqual(200, manager[2].num_parents)
+        manager = loader.load(content, show_prog=False, max_parents=10)
+        self.assertEqual(10, manager[2].num_parents)
 
     def test_compute_total_size(self):
         manager = loader.load(_example_dump, show_prog=False)

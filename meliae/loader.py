@@ -204,9 +204,21 @@ class ObjManager(object):
     This is the interface for doing queries, etc.
     """
 
-    def __init__(self, objs, show_progress=True):
+    def __init__(self, objs, show_progress=True, max_parents=None):
+        """Create a new ObjManager
+
+        :param show_progress: If True, as content is loading, write progress
+            information to stderr.
+        :param max_parents: When running compute_parents(), cap the maximum
+            parents tracked to a fixed number, since knowing there are 50k
+            references is only informative, you won't actually track into them.
+            If 0 we will not compute parents, if < 0 we will show all parents.
+        """
         self.objs = objs
         self.show_progress = show_progress
+        self.max_parents = max_parents
+        if self.max_parents is None:
+            self.max_parents = 100
 
     def __getitem__(self, address):
         return self.objs[address]
@@ -219,6 +231,8 @@ class ObjManager(object):
 
     def compute_parents(self):
         """For each object, figure out who is referencing it."""
+        if self.max_parents == 0:
+            return
         parents = {}
         get_refs = parents.get
         total = len(self.objs)
@@ -256,13 +270,30 @@ class ObjManager(object):
                     elif t in (int, long):
                         refs = (refs, address)
                     elif t is tuple:
-                        if len(refs) >= 10:
+                        if len(refs) >= 5:
                             refs = list(refs)
                             refs.append(address)
                         else:
                             refs = refs + (address,)
                     elif t is list:
+                        # if we are close to the maximum number of entries, put
+                        # it through a set() to make sure we get all the
+                        # duplicates
+                        if (self.max_parents > 0):
+                            if (len(refs) >= self.max_parents):
+                                # Our list has been filled, all done
+                                continue
+                            elif (len(refs) == self.max_parents - 1):
+                                # We are one step away from being full. We put
+                                # the content into a set() so that we are sure
+                                # any duplicates will get filtered out, leaving
+                                # space for the new ref.
+                                refs.append(address)
+                                refs[:] = set(refs)
+                                continue
                         refs.append(address)
+                        # We don't need to set it, because we modify-in-place
+                        continue
                     else:
                         raise TypeError('unknown refs type: %s\n' % (t,))
                     parents[ref] = refs
@@ -355,6 +386,8 @@ class ObjManager(object):
 
         So we collapse those references back into the object, and grow its
         'size' at the same time.
+
+        :return: True if some data was collapsed
         """
         # The instances I'm focusing on have a custom type name, and every
         # instance has 2 pointers. The first is to __dict__, and the second is
@@ -423,6 +456,7 @@ class ObjManager(object):
                              % (item_idx, total, collapsed))
         if collapsed:
             self.compute_parents()
+        return collapsed
 
     def refs_as_dict(self, obj):
         """Expand the ref list considering it to be a 'dict' structure.
@@ -473,7 +507,8 @@ class ObjManager(object):
                 return o
 
 
-def load(source, using_json=None, show_prog=True, collapse=True):
+def load(source, using_json=None, show_prog=True, collapse=True,
+         max_parents=None):
     """Load objects from the given source.
 
     :param source: If this is a string, we will open it as a file and read all
@@ -486,6 +521,8 @@ def load(source, using_json=None, show_prog=True, collapse=True):
         is available, and use it if it is. (With _speedups built, simplejson
         parses faster and more accurately than the regex.)
     :param show_prog: If True, display the progress as we read in data
+    :param collapse: If True, run collapse_instance_dicts() after loading.
+    :param max_parents: See ObjManager.__init__(max_parents)
     """
     cleanup = None
     if isinstance(source, str):
@@ -501,13 +538,15 @@ def load(source, using_json=None, show_prog=True, collapse=True):
     if using_json is None:
         using_json = (simplejson is not None)
     try:
-        manager = _load(source, using_json, show_prog, input_size)
+        manager = _load(source, using_json, show_prog, input_size,
+                        max_parents=max_parents)
     finally:
         if cleanup is not None:
             cleanup()
     if collapse:
         tstart = time.time()
-        manager.collapse_instance_dicts()
+        if not manager.collapse_instance_dicts():
+            manager.compute_parents()
         if show_prog:
             tend = time.time()
             sys.stderr.write('collapsed in %.1fs\n'
@@ -576,13 +615,13 @@ def iter_objs(source, using_json=False, show_prog=False, input_size=0,
             % (line_num, len(objs), mb_read, input_mb, tdelta))
 
 
-def _load(source, using_json, show_prog, input_size):
+def _load(source, using_json, show_prog, input_size, max_parents=None):
     objs = _loader.MemObjectCollection()
     for memobj in iter_objs(source, using_json, show_prog, input_size, objs,
                             factory=objs.add):
         # objs.add automatically adds the object as it is created
         pass
-    return ObjManager(objs, show_progress=show_prog)
+    return ObjManager(objs, show_progress=show_prog, max_parents=max_parents)
 
 
 def remove_expensive_references(source, total_objs=0, show_progress=False):

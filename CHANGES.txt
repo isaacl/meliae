@@ -14,6 +14,17 @@ Meliae 0.4
   I don't want to work around. Namely sizeof(Class) doesn't work under
   even pyrex 0.9.9. (John Arbash Meinel)
 
+* Duplicate parent entries are filtered out. (eg the intern dict refers
+  to the same string 2x, you'll see 1 parent ref in the child, not 2.)
+  (John Arbash Meinel)
+
+* We now default to limiting the maximum length of the parents list
+  (default 100). I had some dumps where a single object was referenced
+  50k times. Anything over about 10 is at the point where you won't
+  really walk them. This can be disabled with ``load(max_parents=-1)``.
+  The main win is lowering memory consumption. A 50k parent list takes
+  200kB by itself (on 32-bit).  (John Arbash Meinel)
+
 Meliae 0.3
 ##########
 
