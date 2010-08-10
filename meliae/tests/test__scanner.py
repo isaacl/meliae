@@ -18,6 +18,7 @@ import gc
 import sys
 import tempfile
 import types
+import zlib
 
 from meliae import (
     _scanner,
@@ -192,6 +193,33 @@ class TestSizeOf(tests.TestCase):
         del log[:]
         self.assertSizeOf(4, obj)
         self.assertEqual([], log)
+
+    def test_size_of_special_neg1(self):
+        # Returning -1 falls back to the regular __sizeof__, etc interface
+        class CustomWithoutSizeof(object):
+            pass
+        log = []
+        def _size_neg1(obj):
+            log.append(obj)
+            return -1
+        obj = CustomWithoutSizeof()
+        self.assertSizeOf(4, obj)
+        _scanner.add_special_size('CustomWithoutSizeof', _size_neg1, _size_neg1)
+        try:
+            self.assertSizeOf(4, obj)
+        finally:
+            _scanner.add_special_size('CustomWithoutSizeof', None, None)
+        self.assertEqual([obj], log)
+
+    def test_size_of_zlib_compress_obj(self):
+        # zlib compress objects allocate a lot of extra buffers, we want to
+        # track that. Note that we are approximating it, because we don't
+        # actually inspect the C attributes. But it is a closer approximation
+        # than not doing this.
+        pass
+
+    def test_size_of_zlib_decompress_obj(self):
+        pass
 
 
 def _string_to_json(s):

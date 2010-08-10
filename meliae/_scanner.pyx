@@ -152,14 +152,51 @@ def add_special_size(object tp_name, object size_of_32, object size_of_64):
 
 def _zlib_size_of_32(zlib_obj):
     """Return a __sizeof__ for a zlib object."""
+    cdef Py_ssize_t size
+
     t = type(zlib_obj)
     name = t.__name__
-    if name.endswith('Compress'):
-        pass
-    elif name.endswith('Decompress'):
-        pass
+    # Size of the zlib 'compobject', (PyObject_HEAD + z_stream, + misc)
+    size = 56
+    if name.endswith('Decompress'):
+        # _get_referents doesn't track into these attributes, so we just
+        # attribute the size to the object itself.
+        size += _size_of(zlib_obj.unused_data)
+        size += _size_of(zlib_obj.unconsumed_tail)
+        # sizeof(inflate_state)
+        size += 7116
+        # sizeof(buffers allocated for inflate)
+        # (1 << state->wbits)
+        # However, we don't have access to wbits, so we assume the default (and
+        # largest) of 15 wbits
+        size += (1 << 15)
+    elif name.endswith('Compress'):
+        # compress objects have a reference to unused_data, etc, but it always
+        # points to the empty string.
+        # sizeof(deflate_state)
+        size += 5828
+        # We don't have access to the stream C attributes, so we assume the
+        # standard values and go with it
+        # Pos == unsigned short
+        # Byte == unsigned char
+        # w_size = 1 << s->w_bits, default 15 => (1<<15)
+        # memLevel default is 8 (maybe 9?)
+        # s->w_size * 2*sizeof(Byte) = (1<<15) * 2 * 1 = 65536
+        size += 65536
+        # s_>w_size * sizeof(Pos) = (1<<15) * 2 = 65536
+        size += 65536
+        # s->hash_size * sizeof(Pos) = (1 << (8+7)) * 2 = 65536
+        size += 65536
+        # s->lit_bufsize = 1 << (8 + 6) = (1 << 14) = 16384
+        # s->pending_buf = lit_bufsize * (sizeof(ush)+2) = 4*16384 = 65536
+        size += 65536
+        # empirically, I got ~96378 bytes/object after allocating a lot of them
+        # After sending a bunch of compression data to all of them, I got
+        # ~270127 bytes/object. (according to WorkingMem)
+        # This gives 268028, which is pretty close
     else:
         return -1
+    return size
 
 
 def _zlib_size_of_64(zlib_obj):
