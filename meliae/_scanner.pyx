@@ -33,7 +33,9 @@ cdef extern from "Python.h":
 
 cdef extern from "_scanner_core.h":
     Py_ssize_t _size_of(object c_obj)
-    ctypedef void (*write_callback)(void *callee_data, char *bytes, size_t len)
+    ctypedef char* const_pchar "const char*"
+    ctypedef void (*write_callback)(void *callee_data, const_pchar bytes,
+                   size_t len)
 
     void _clear_last_dumped()
     void _dump_object_info(write_callback write, void *callee_data,
