@@ -114,7 +114,7 @@ def get_referents(object obj):
     return _get_referents(obj)
 
 
-def add_special_size(object tp_name, object size_32, object size_64):
+def add_special_size(object tp_name, object size_of_32, object size_of_64):
     """Special case a given object size.
 
     This is only meant to be used for objects we don't already handle or which
@@ -127,19 +127,22 @@ def add_special_size(object tp_name, object size_32, object size_64):
 
     Setting the value to None will remove the value.
 
+    (We only distinguish size_of_32 from size_of_64 for the implementer's
+    benefit, since sizeof() is not generally accessible from Python.)
+
     :param tp_name: The type string we care about (such as 'zlib.Compress').
         This will be matched against object->type->tp_name.
-    :param size_32: The size of the object if sizeof(long) is 32-bits.
-    :param size_64: The size of the object if sizeof(long) is 64-bits.
+    :param size_of_32: Called when _word_size == 32-bits
+    :param size_of_64: Called when _word_size == 64-bits
     :return: None
     """
     special_dict = _get_special_case_dict()
     if _word_size == 4:
-        sz = size_32
+        sz = size_of_32
     elif _word_size == 8:
-        sz = size_64
+        sz = size_of_64
     else:
-        raise ValueError('Unknown _word_size: %d' % (_word_size,))
+        raise RuntimeError('Unknown word size: %s' % (_word_size,))
     if sz is None:
         if tp_name in special_dict:
             del special_dict[tp_name]
@@ -147,5 +150,28 @@ def add_special_size(object tp_name, object size_32, object size_64):
         special_dict[tp_name] = sz
 
 
-add_special_size('zlib.Compress', 1234, 5678)
-add_special_size('zlib.Decompress', 1234, 5678)
+def _zlib_size_of_32(zlib_obj):
+    """Return a __sizeof__ for a zlib object."""
+    t = type(zlib_obj)
+    name = t.__name__
+    if name.endswith('Compress'):
+        pass
+    elif name.endswith('Decompress'):
+        pass
+    else:
+        return -1
+
+
+def _zlib_size_of_64(zlib_obj):
+    """Return a __sizeof__ for a zlib object."""
+    t = type(zlib_obj)
+    name = t.__name__
+    if name.endswith('Compress'):
+        pass
+    elif name.endswith('Decompress'):
+        pass
+    else:
+        return -1
+
+add_special_size('zlib.Compress', _zlib_size_of_32, _zlib_size_of_64)
+add_special_size('zlib.Decompress', _zlib_size_of_32, _zlib_size_of_64)
