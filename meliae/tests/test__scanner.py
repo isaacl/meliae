@@ -216,10 +216,12 @@ class TestSizeOf(tests.TestCase):
         # track that. Note that we are approximating it, because we don't
         # actually inspect the C attributes. But it is a closer approximation
         # than not doing this.
-        pass
+        c = zlib.compressobj()
+        self.assertTrue(_scanner.size_of(c) > 256000)
 
     def test_size_of_zlib_decompress_obj(self):
-        pass
+        d = zlib.decompressobj()
+        self.assertTrue(_scanner.size_of(d) > 20000)
 
 
 def _string_to_json(s):

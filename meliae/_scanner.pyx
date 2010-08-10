@@ -170,6 +170,7 @@ def _zlib_size_of_32(zlib_obj):
         # However, we don't have access to wbits, so we assume the default (and
         # largest) of 15 wbits
         size += (1 << 15)
+        # Empirically 42kB / object during decompression, and this gives 39998
     elif name.endswith('Compress'):
         # compress objects have a reference to unused_data, etc, but it always
         # points to the empty string.
@@ -203,12 +204,35 @@ def _zlib_size_of_64(zlib_obj):
     """Return a __sizeof__ for a zlib object."""
     t = type(zlib_obj)
     name = t.__name__
-    if name.endswith('Compress'):
-        pass
-    elif name.endswith('Decompress'):
-        pass
+    # Size of the zlib 'compobject', (PyObject_HEAD + z_stream, + misc)
+    size = (56 * 2)
+    if name.endswith('Decompress'):
+        size += _size_of(zlib_obj.unused_data)
+        size += _size_of(zlib_obj.unconsumed_tail)
+        # sizeof(inflate_state)
+        size += (7116 * 2)
+        # sizeof(buffers allocated for inflate)
+        # (1 << state->wbits)
+        # However, we don't have access to wbits, so we assume the default (and
+        # largest) of 15 wbits
+        size += (1 << 15)
+    elif name.endswith('Compress'):
+        # sizeof(deflate_state)
+        size += (5828 * 2)
+        # We don't have access to the stream C attributes, so we assume the
+        # standard values and go with it
+        # s->w_size * 2*sizeof(Byte) = (1<<15) * 2 * 1 = 65536
+        size += 65536
+        # s_>w_size * sizeof(Pos) = (1<<15) * 2 = 65536
+        size += 65536
+        # s->hash_size * sizeof(Pos) = (1 << (8+7)) * 2 = 65536
+        size += 65536
+        # s->lit_bufsize = 1 << (8 + 6) = (1 << 14) = 16384
+        # s->pending_buf = lit_bufsize * (sizeof(ush)+2) = 4*16384 = 65536
+        size += 65536
     else:
         return -1
+    return size
 
 add_special_size('zlib.Compress', _zlib_size_of_32, _zlib_size_of_64)
 add_special_size('zlib.Decompress', _zlib_size_of_32, _zlib_size_of_64)
