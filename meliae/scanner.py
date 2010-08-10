@@ -25,6 +25,7 @@ from meliae import (
 
 size_of = _scanner.size_of
 get_referents = _scanner.get_referents
+add_special_size = _scanner.add_special_size
 
 
 def dump_all_referenced(outf, obj, is_pending=False):
