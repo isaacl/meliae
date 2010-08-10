@@ -18,6 +18,7 @@ import gc
 import sys
 import tempfile
 import types
+import zlib
 
 from meliae import (
     _scanner,
@@ -169,6 +170,60 @@ class TestSizeOf(tests.TestCase):
         # If we get '-1' as the size we assume something is wrong, and fall
         # back to the original size
         self.assertSizeOf(4, CustomSize(-1), has_gc=True)
+
+    def test_size_of_special(self):
+        class CustomWithoutSizeof(object):
+            pass
+        log = []
+        def _size_32(obj):
+            log.append(obj)
+            return 800
+        def _size_64(obj):
+            log.append(obj)
+            return 1600
+            
+        obj = CustomWithoutSizeof()
+        self.assertSizeOf(4, obj)
+        _scanner.add_special_size('CustomWithoutSizeof', _size_32, _size_64)
+        try:
+            self.assertSizeOf(200, obj)
+        finally:
+            _scanner.add_special_size('CustomWithoutSizeof', None, None)
+        self.assertEqual([obj], log)
+        del log[:]
+        self.assertSizeOf(4, obj)
+        self.assertEqual([], log)
+
+    def test_size_of_special_neg1(self):
+        # Returning -1 falls back to the regular __sizeof__, etc interface
+        class CustomWithoutSizeof(object):
+            pass
+        log = []
+        def _size_neg1(obj):
+            log.append(obj)
+            return -1
+        obj = CustomWithoutSizeof()
+        self.assertSizeOf(4, obj)
+        _scanner.add_special_size('CustomWithoutSizeof', _size_neg1, _size_neg1)
+        try:
+            self.assertSizeOf(4, obj)
+        finally:
+            _scanner.add_special_size('CustomWithoutSizeof', None, None)
+        self.assertEqual([obj], log)
+
+    def test_size_of_zlib_compress_obj(self):
+        # zlib compress objects allocate a lot of extra buffers, we want to
+        # track that. Note that we are approximating it, because we don't
+        # actually inspect the C attributes. But it is a closer approximation
+        # than not doing this.
+        c = zlib.compressobj()
+        self.assertTrue(_scanner.size_of(c) > 256000)
+        self.assertEqual(0, _scanner.size_of(c) % _scanner._word_size)
+
+    def test_size_of_zlib_decompress_obj(self):
+        d = zlib.decompressobj()
+        self.assertTrue(_scanner.size_of(d) > 30000)
+        self.assertEqual(0, _scanner.size_of(d) % _scanner._word_size)
 
 
 def _string_to_json(s):

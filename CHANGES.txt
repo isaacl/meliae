@@ -25,6 +25,15 @@ Meliae 0.4
   The main win is lowering memory consumption. A 50k parent list takes
   200kB by itself (on 32-bit).  (John Arbash Meinel)
 
+* Fix a PyInt memory leak. We were calling __sizeof__ which returns an
+  PyInt and not DECREFing it. (John Arbash Meinel)
+
+* Initial support for overriding ``__sizeof__`` definitions. It turns
+  out that object has a basic definition, so all new style classes
+  inherit it. We now provide ``meliae.scanner.add_special_size``, which
+  takes a type name and some callbacks to determine the size of an
+  object. This lets you register them without importing the module.
+
 Meliae 0.3
 ##########
 

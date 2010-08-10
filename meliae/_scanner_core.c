@@ -60,12 +60,14 @@ static void _write_to_ref_info(struct ref_info *info, const char *fmt_string, ..
 #else
 static void _write_to_ref_info(struct ref_info *info, const char *fmt_string, ...);
 #endif
+static PyObject * _get_specials();
 
 /* The address of the last thing we dumped. Stuff like dumping the string
  * interned dictionary will dump the same string 2x in a row. This helps
  * prevent that.
  */
 static PyObject *_last_dumped = NULL;
+static PyObject *_special_case_dict = NULL;
 
 void
 _clear_last_dumped()
@@ -73,7 +75,7 @@ _clear_last_dumped()
     _last_dumped = NULL;
 }
 
-Py_ssize_t
+static Py_ssize_t
 _basic_object_size(PyObject *c_obj)
 {
     Py_ssize_t size;
@@ -85,7 +87,7 @@ _basic_object_size(PyObject *c_obj)
 }
 
 
-Py_ssize_t
+static Py_ssize_t
 _var_object_size(PyVarObject *c_obj)
 {
     Py_ssize_t num_entries;
@@ -99,7 +101,28 @@ _var_object_size(PyVarObject *c_obj)
             + num_entries * c_obj->ob_type->tp_itemsize;
 }
 
-Py_ssize_t
+static Py_ssize_t
+_object_to_size_with_gc(PyObject *size_obj, PyObject *c_obj)
+{
+    Py_ssize_t size = -1;
+
+    size = PyInt_AsSsize_t(size_obj);
+    if (size == -1) {
+        // Probably an error occurred, we don't know for sure, but we might as
+        // well just claim that we don't know the size. We *could* check
+        // PyErr_Occurred(), but if we are just clearing it anyway...
+        PyErr_Clear();
+        return -1;
+    }
+    // There is one trick left. Namely, __sizeof__ doesn't include the
+    // GC overhead, so let's add that back in
+    if (PyType_HasFeature(Py_TYPE(c_obj), Py_TPFLAGS_HAVE_GC)) {
+        size += sizeof(PyGC_Head);
+    }
+    return size;
+}
+
+static Py_ssize_t
 _size_of_from__sizeof__(PyObject *c_obj)
 {
     PyObject *size_obj = NULL;
@@ -117,24 +140,13 @@ _size_of_from__sizeof__(PyObject *c_obj)
         PyErr_Clear();
         return -1;
     }
-    size = PyInt_AsSsize_t(size_obj);
-    if (size == -1) {
-        // Probably an error occurred, we don't know for sure, but we might as
-        // well just claim that we don't know the size. We *could* check
-        // PyErr_Occurred(), but if we are just clearing it anyway...
-        PyErr_Clear();
-        return -1;
-    }
-    // There is one trick left. Namely, __sizeof__ doesn't seem to include the
-    // GC overhead, so let's add that back in
-    if (PyType_HasFeature(c_obj->ob_type, Py_TPFLAGS_HAVE_GC)) {
-        size += sizeof(PyGC_Head);
-    }
+    size = _object_to_size_with_gc(size_obj, c_obj);
+    Py_DECREF(size_obj);
     return size;
 }
 
 
-Py_ssize_t
+static Py_ssize_t
 _size_of_list(PyListObject *c_obj)
 {
     Py_ssize_t size;
@@ -144,7 +156,7 @@ _size_of_list(PyListObject *c_obj)
 }
 
 
-Py_ssize_t
+static Py_ssize_t
 _size_of_set(PySetObject *c_obj)
 {
     Py_ssize_t size;
@@ -156,7 +168,7 @@ _size_of_set(PySetObject *c_obj)
 }
 
 
-Py_ssize_t
+static Py_ssize_t
 _size_of_dict(PyDictObject *c_obj)
 {
     Py_ssize_t size;
@@ -168,7 +180,7 @@ _size_of_dict(PyDictObject *c_obj)
 }
 
 
-Py_ssize_t
+static Py_ssize_t
 _size_of_unicode(PyUnicodeObject *c_obj)
 {
     Py_ssize_t size;
@@ -177,6 +189,51 @@ _size_of_unicode(PyUnicodeObject *c_obj)
     return size;
 }
 
+static Py_ssize_t
+_size_of_from_specials(PyObject *c_obj)
+{
+    PyObject *special_dict;
+    PyObject *special_size_of;
+    PyObject *val;
+    Py_ssize_t size;
+
+    special_dict = _get_specials();
+    if (special_dict == NULL) {
+        PyErr_Clear(); // Not sure what happened, but don't propogate it
+        return -1;
+    }
+    special_size_of = PyDict_GetItemString(special_dict,
+                                           Py_TYPE(c_obj)->tp_name);
+    if (special_size_of == NULL) {
+        // if special_size_of is NULL, an exception is *not* set
+        return -1;
+    } 
+    // special_size_of is a *borrowed referenced*
+    val = PyObject_CallFunction(special_size_of, "O", c_obj);
+    if (val == NULL) {
+        return -1;
+    }
+    size = _object_to_size_with_gc(val, c_obj);
+    Py_DECREF(val);
+    return size;
+}
+
+static Py_ssize_t
+_size_of_from_var_or_basic_size(PyObject *c_obj)
+{
+    /* There are a bunch of types that we know we can check directly, without
+     * having to go through the __sizeof__ abstraction. This allows us to avoid
+     * the extra intermediate allocations. It is also our final fallback
+     * method.
+     */
+
+    if (c_obj->ob_type->tp_itemsize != 0) {
+        // Variable length object with inline storage
+        // total size is tp_itemsize * ob_size
+        return _var_object_size((PyVarObject *)c_obj);
+    }
+    return _basic_object_size(c_obj);
+}
 
 Py_ssize_t
 _size_of(PyObject *c_obj)
@@ -191,19 +248,27 @@ _size_of(PyObject *c_obj)
         return _size_of_dict((PyDictObject *)c_obj);
     } else if PyUnicode_Check(c_obj) {
         return _size_of_unicode((PyUnicodeObject *)c_obj);
+    } else if (PyTuple_CheckExact(c_obj)
+            || PyString_CheckExact(c_obj)
+            || PyInt_CheckExact(c_obj)
+            || PyBool_Check(c_obj)
+            || c_obj == Py_None
+            || PyModule_CheckExact(c_obj))
+    {
+        // All of these implement __sizeof__, but we don't need to use it
+        return _size_of_from_var_or_basic_size(c_obj);
     }
 
+    // object implements __sizeof__ so we have to specials first
+    size = _size_of_from_specials(c_obj);
+    if (size != -1) {
+        return size;
+    }
     size = _size_of_from__sizeof__(c_obj);
     if (size != -1) {
         return size;
     }
-
-    if (c_obj->ob_type->tp_itemsize != 0) {
-        // Variable length object with inline storage
-        // total size is tp_itemsize * ob_size
-        return _var_object_size((PyVarObject *)c_obj);
-    }
-    return _basic_object_size(c_obj);
+    return _size_of_from_var_or_basic_size(c_obj);
 }
 
 
@@ -527,7 +592,8 @@ _append_object(PyObject *visiting, void* data)
 /**
  * Return a PyList of all objects referenced via tp_traverse.
  */
-PyObject *_get_referents(PyObject *c_obj)
+PyObject *
+_get_referents(PyObject *c_obj)
 {
     PyObject *lst;
 
@@ -542,4 +608,23 @@ PyObject *_get_referents(PyObject *c_obj)
         Py_TYPE(c_obj)->tp_traverse(c_obj, _append_object, lst);
     }
     return lst;
+}
+
+static PyObject *
+_get_specials()
+{
+    if (_special_case_dict == NULL) {
+        _special_case_dict = PyDict_New();
+    }
+    return _special_case_dict;
+}
+
+PyObject *
+_get_special_case_dict()
+{
+    PyObject *ret;
+
+    ret = _get_specials();
+    Py_XINCREF(ret);
+    return ret;
 }
