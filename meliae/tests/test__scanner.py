@@ -218,10 +218,12 @@ class TestSizeOf(tests.TestCase):
         # than not doing this.
         c = zlib.compressobj()
         self.assertTrue(_scanner.size_of(c) > 256000)
+        self.assertEqual(0, _scanner.size_of(c) % _scanner._word_size)
 
     def test_size_of_zlib_decompress_obj(self):
         d = zlib.decompressobj()
-        self.assertTrue(_scanner.size_of(d) > 20000)
+        self.assertTrue(_scanner.size_of(d) > 30000)
+        self.assertEqual(0, _scanner.size_of(d) % _scanner._word_size)
 
 
 def _string_to_json(s):

@@ -197,6 +197,9 @@ def _zlib_size_of_32(zlib_obj):
         # This gives 268028, which is pretty close
     else:
         return -1
+    # We assume that everything is at least aligned to word boundary
+    if size % _word_size != 0:
+        size += _word_size - (size % _word_size)
     return size
 
 
@@ -205,6 +208,7 @@ def _zlib_size_of_64(zlib_obj):
     t = type(zlib_obj)
     name = t.__name__
     # Size of the zlib 'compobject', (PyObject_HEAD + z_stream, + misc)
+    # All the 64-bit numbers here are 'made up'
     size = (56 * 2)
     if name.endswith('Decompress'):
         size += _size_of(zlib_obj.unused_data)
@@ -232,6 +236,8 @@ def _zlib_size_of_64(zlib_obj):
         size += 65536
     else:
         return -1
+    if size % _word_size != 0:
+        size += _word_size - (size % _word_size)
     return size
 
 add_special_size('zlib.Compress', _zlib_size_of_32, _zlib_size_of_64)
