@@ -27,6 +27,17 @@ size_of = _scanner.size_of
 get_referents = _scanner.get_referents
 add_special_size = _scanner.add_special_size
 
+def _size_of_ndarray(ndarray_obj):
+    """
+    Return the size of a Numpy ndarray's internal storage.
+
+    Doesn't yet handle views into other arrays.
+    """
+
+    return ndarray_obj.nbytes
+
+add_special_size("numpy.ndarray", _size_of_ndarray, _size_of_ndarray)
+
 
 def dump_all_referenced(outf, obj, is_pending=False):
     """Recursively dump everything that is referenced from obj."""
