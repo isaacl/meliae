@@ -1,4 +1,4 @@
-# Copyright (C) 2009 Canonical Ltd
+# Copyright (C) 2009, 2011 Canonical Ltd
 # 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
@@ -26,7 +26,8 @@ def run_suite(verbose=False):
         verbosity = 1
     runner = unittest.TextTestRunner(verbosity=verbosity)
     suite = test_suite()
-    return runner.run(suite)
+    result = runner.run(suite)
+    return result.wasSuccessful()
 
 
 def test_suite():

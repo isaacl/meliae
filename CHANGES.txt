@@ -39,6 +39,10 @@ Meliae 0.4
   accounting for alignment effects on 64-bit machines.
   (John Arbash Meinel, Jelmer Vernooij, #739310)
 
+* ``run_tests.py`` exits nonzero if a test fails.
+  (Jelmer Vernooij, #740109)
+
+
 Meliae 0.3
 ##########
 
