@@ -1,14 +1,14 @@
-# Copyright (C) 2009, 2010 Canonical Ltd
-# 
+# Copyright (C) 2009, 2010, 2011 Canonical Ltd
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
 # published by the Free Software Foundation.
-# 
+#
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -28,6 +28,10 @@ from meliae import (
 
 STRING_BASE = 8
 STRING_SCALING = 4
+if sys.version_info[:2] >= (2, 7):
+    # In python2.7 they 'shrunk' strings by a couple bytes, by changing where
+    # the pointer was. So their base size is a few bytes smaller
+    STRING_BASE = 5
 
 
 class TestSizeOf(tests.TestCase):
@@ -39,6 +43,7 @@ class TestSizeOf(tests.TestCase):
         self.assertEqual(expected_size, _scanner.size_of(obj))
 
     def test_empty_string(self):
+        fixed_size = STRING_BASE
         self.assertSizeOf(STRING_SCALING, '', extra_size=0+STRING_BASE, has_gc=False)
 
     def test_short_string(self):
