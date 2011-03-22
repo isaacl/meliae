@@ -26,7 +26,8 @@ def run_suite(verbose=False):
         verbosity = 1
     runner = unittest.TextTestRunner(verbosity=verbosity)
     suite = test_suite()
-    return runner.run(suite)
+    result = runner.run(suite)
+    return result.wasSuccessful()
 
 
 def test_suite():
