@@ -1,14 +1,14 @@
-# Copyright (C) 2009, 2010 Canonical Ltd
-# 
+# Copyright (C) 2009, 2010, 2011 Canonical Ltd
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
 # published by the Free Software Foundation.
-# 
+#
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -130,10 +130,13 @@ class TestIntSet(tests.TestCase):
         # 5: _mask
         # 6: _array
         # 4-byte int _has_singleton
-        self.assertSizeOf(6, iset, extra_size=4, has_gc=False)
+        # However, most compliers will align the struct based on the width of
+        # the largest entry. So while we could put 2 4-byte ints into the
+        # struct, it will waste 4-bytes anyway.
+        self.assertSizeOf(7, iset, has_gc=False)
         iset.add(12345)
         # Min allocation is 256 entries
-        self.assertSizeOf(6+256, iset, extra_size=4, has_gc=False)
+        self.assertSizeOf(7+256, iset, has_gc=False)
 
 
 class TestIDSet(TestIntSet):
@@ -151,7 +154,7 @@ class TestIDSet(TestIntSet):
         self.assertFalse(bigint in iset)
         iset.add(bigint)
         self.assertTrue(bigint in iset)
-        
+
     def test_add_singletons(self):
         pass
         # Negative values cannot be checked in IDSet, because we cast them to

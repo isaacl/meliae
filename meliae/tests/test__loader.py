@@ -1,20 +1,18 @@
-# Copyright (C) 2009, 2010 Canonical Ltd
-# 
+# Copyright (C) 2009, 2010, 2011 Canonical Ltd
+#
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 3 as
 # published by the Free Software Foundation.
-# 
+#
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 """Pyrex extension for tracking loaded objects"""
-
-import sys
 
 from meliae import (
     _loader,
@@ -23,8 +21,21 @@ from meliae import (
     tests,
     )
 
+# Empty table size is 1024 pointers
+# 1: PyType*
+# 2: refcnt
+# 3: vtable*
+# 4: _table*
+# 3 4-byte int attributes
+# Note that on 64-bit platforms, alignment issues mean we will still
+# round to a multiple-of-8 bytes.
+_memobj_extra_size = 3*4
+if (_memobj_extra_size % _scanner._word_size) != 0:
+    _memobj_extra_size += (_scanner._word_size
+                           - (_memobj_extra_size % _scanner._word_size))
 
 class TestMemObjectCollection(tests.TestCase):
+
 
     def test__init__(self):
         moc = _loader.MemObjectCollection()
@@ -207,7 +218,10 @@ class TestMemObjectCollection(tests.TestCase):
         # 3: vtable*
         # 4: _table*
         # 3 4-byte int attributes
-        self.assertSizeOf(4+1024, moc, extra_size=3*4, has_gc=False)
+        # Note that on 64-bit platforms, alignment issues mean we will still
+        # round to a multiple-of-8 bytes.
+        self.assertSizeOf(4+1024, moc, extra_size=_memobj_extra_size,
+                          has_gc=False)
 
     def test__sizeof__one_item(self):
         moc = _loader.MemObjectCollection()
@@ -222,7 +236,8 @@ class TestMemObjectCollection(tests.TestCase):
         # 7: ulong total_size
         # 8: *proxy
         moc.add(0, 'foo', 100)
-        self.assertSizeOf(4+1024+8, moc, extra_size=3*4, has_gc=False)
+        self.assertSizeOf(4+1024+8, moc, extra_size=_memobj_extra_size,
+                          has_gc=False)
 
     def test__sizeof__with_reflists(self):
         moc = _loader.MemObjectCollection()
@@ -230,7 +245,8 @@ class TestMemObjectCollection(tests.TestCase):
         # ref-list allocates the number of entries + 1
         # Each _memobject also takes up
         moc.add(0, 'foo', 100, children=[1234], parent_list=[3456, 7890])
-        self.assertSizeOf(4+1024+8+2+3, moc, extra_size=3*4, has_gc=False)
+        self.assertSizeOf(4+1024+8+2+3, moc, extra_size=_memobj_extra_size,
+                          has_gc=False)
 
     def test__sizeof__with_dummy(self):
         moc = _loader.MemObjectCollection()
