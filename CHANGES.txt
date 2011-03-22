@@ -34,6 +34,11 @@ Meliae 0.4
   takes a type name and some callbacks to determine the size of an
   object. This lets you register them without importing the module.
 
+* Small updates to fix the test suite under python2.7 and 64-bit
+  architectures. PyString changed size in 2.7, and we weren't
+  accounting for alignment effects on 64-bit machines.
+  (John Arbash Meinel, Jelmer Vernooij, #739310)
+
 Meliae 0.3
 ##########
 

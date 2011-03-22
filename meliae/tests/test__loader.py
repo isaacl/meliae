@@ -253,7 +253,8 @@ class TestMemObjectCollection(tests.TestCase):
         moc.add(0, 'foo', 100, children=[1234], parent_list=[3456, 7890])
         moc.add(1, 'foo', 100, children=[1234], parent_list=[3456, 7890])
         del moc[1]
-        self.assertSizeOf(4+1024+8+2+3, moc, extra_size=3*4, has_gc=False)
+        self.assertSizeOf(4+1024+8+2+3, moc, extra_size=_memobj_extra_size,
+                          has_gc=False)
 
     def test_traverse_empty(self):
         # With nothing present, we return no referents
