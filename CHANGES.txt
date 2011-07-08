@@ -8,7 +8,7 @@ Meliae Changes
 Meliae 0.4
 ##########
 
-:0.4: (not released yet)
+:0.4: 2011-07-08
 
 * We now only compile against Cython. I've finally hit some issues that
   I don't want to work around. Namely sizeof(Class) doesn't work under
