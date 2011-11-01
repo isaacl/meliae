@@ -491,7 +491,11 @@ cdef class _MemObjectProxy:
         off = offset
         if off >= self._obj.child_list.size:
             raise IndexError('%s has only %d (not %d) references'
-                             % (self, self._obj.child_list.size, offset))
+                             % (self, self._obj.child_list.size, offset+1))
+        if off < 0:
+            off = self._obj.child_list.size + off
+        if off < 0:
+            raise IndexError('ref index %s out of range' % (offset,))
         address = <object>self._obj.child_list.refs[off]
         try:
             return self.collection[address]

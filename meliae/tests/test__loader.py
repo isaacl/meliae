@@ -417,6 +417,39 @@ class Test_MemObjectProxy(tests.TestCase):
         self.assertEqual(255, mop255.address)
         self.assertEqual('baz', mop255.type_str)
 
+    def test__getitem__neg(self):
+        mop = self.moc.add(1234567, 'type', 256, children=[0, 255])
+        mop0 = mop[-2]
+        mop255 = mop[-1]
+        self.assertEqual([mop0, mop255], list(mop))
+        self.assertEqual(255, mop255.address)
+        self.assertEqual('baz', mop255.type_str)
+
+    def test__getitem__exception(self):
+        mop = self.moc.add(1234567, 'type', 256, children=[0, 255])
+        def get(mop, idx):
+            return mop[idx]
+        try:
+            mop[2]
+        except IndexError, e:
+            e = e
+        else:
+            self.fail("IndexError not raised")
+        self.assertEqual('%s has only 2 (not 3) references' % (mop,),
+                         str(e))
+
+    def test__getitem__too_negative(self):
+        mop = self.moc.add(1234567, 'type', 256, children=[0, 255])
+        def get(mop, idx):
+            return mop[idx]
+        try:
+            mop[-3]
+        except IndexError, e:
+            e = e
+        else:
+            self.fail("IndexError not raised")
+        self.assertEqual('ref index -3 out of range', str(e))
+
     def test_total_size(self):
         mop = self.moc[0]
         self.assertEqual(0, mop.total_size)
