@@ -10,6 +10,10 @@ Meliae 0.5
 
 :0.5: (not released yet)
 
+* Allow using negative indexes for MemObjectProxy. So you can do
+  'obj[-1]' to get the last child, (same as obj.c[-1]).
+  (Robert Xiao, #882356)
+
 Meliae 0.4
 ##########
 
