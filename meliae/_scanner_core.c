@@ -463,6 +463,7 @@ _dump_object_to_ref_info(struct ref_info *info, PyObject *c_obj, int recurse)
     Py_ssize_t size;
     int retval;
     int do_traverse;
+    char *name;
 
     if (info->nodump != NULL && 
         info->nodump != Py_None
@@ -498,8 +499,13 @@ _dump_object_to_ref_info(struct ref_info *info, PyObject *c_obj, int recurse)
     _write_to_ref_info(info, ", \"size\": " SSIZET_FMT, _size_of(c_obj));
     //  HANDLE __name__
     if (PyModule_Check(c_obj)) {
-        _write_static_to_info(info, ", \"name\": ");
-        _dump_json_c_string(info, PyModule_GetName(c_obj), -1);
+        name = PyModule_GetName(c_obj);
+        if (name == NULL) {
+            PyErr_Clear();
+        } else {
+            _write_static_to_info(info, ", \"name\": ");
+            _dump_json_c_string(info, name, -1);
+        }
     } else if (PyFunction_Check(c_obj)) {
         _write_static_to_info(info, ", \"name\": ");
         _dump_string(info, ((PyFunctionObject *)c_obj)->func_name);

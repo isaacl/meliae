@@ -544,6 +544,14 @@ class TestDumpInfo(tests.TestCase):
         f = local_frame()
         self.assertDumpInfo(f)
 
+    def test_fakemodule(self):
+        class FakeModule(types.ModuleType):
+            def __init__(self, dct):
+                self.__tmp = None
+                del self.__tmp
+        fm = FakeModule({})
+        self.assertDumpInfo(fm)
+
 
 class TestGetReferents(tests.TestCase):
 
