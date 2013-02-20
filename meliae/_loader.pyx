@@ -1036,8 +1036,8 @@ cdef class _MOCValueIterator:
         self.table_pos += 1
         if cur == NULL or cur == _dummy:
             raise RuntimeError('didn\'t run off the end, but got null/dummy'
-                ' %d, %d %d' % (<int>cur, self.table_pos,
-                                self.collection._table_mask))
+                ' 0x%x, %d %d' % (<Py_ssize_t>cur, self.table_pos,
+                                  self.collection._table_mask))
         return self.collection._proxy_for(<object>cur.address, cur)
 
 
