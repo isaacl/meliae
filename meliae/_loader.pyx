@@ -581,6 +581,8 @@ cdef class _MemObjectProxy:
             else:
                 # TODO: This isn't perfect, as it doesn't do proper json
                 #       escaping
+                if '"' in self.value:
+                    raise AssertionError(self.value)
                 value = '"value": "%s", ' % self.value
         else:
             value = ''

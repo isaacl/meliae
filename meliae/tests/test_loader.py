@@ -133,7 +133,7 @@ class TestLoad(tests.TestCase):
             '{"address": 2345, "type": "module", "size": 60, "name": "mymod"'
                 ', "refs": [1234]}',
             '{"address": 4567, "type": "str", "size": 150, "len": 126'
-                ', "value": "Test \\\'whoami\\\'\\u000a\\"Your name\\"'
+                ', "value": "Test \\\'whoami\\\'\\u000a\\"Your name\\""'
                 ', "refs": []}'
             ], using_json=False, show_prog=False).objs
         keys = sorted(objs.keys())
@@ -148,10 +148,7 @@ class TestLoad(tests.TestCase):
         self.assertEqual("module", obj.type_str)
         self.assertEqual("mymod", obj.value)
         obj = objs[4567]
-        # Known failure? We don't unescape properly, also, I'm surprised this
-        # works. " should exit the " string, but \" seems to leave it. But the
-        # '\' is also left verbatim because it is a raw string...
-        self.assertEqual(r"Test \'whoami\'\u000a\"Your name\"", obj.value)
+        self.assertEqual("Test \\'whoami\\'\\u000a\\\"Your name\\\"", obj.value)
 
     def test_load_example(self):
         objs = loader.load(_example_dump, show_prog=False)
