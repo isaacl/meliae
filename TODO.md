@@ -1,20 +1,17 @@
-============
 Things to do
 ============
 
 A fairly random collection of things to work on next...
 
-1) Generating a Calltree output.
+1. Generating a Calltree output.
 
    I haven't yet understood the calltree syntax, nor how I want to
    exactly match things. Certainly you don't have FILE/LINE to put into
    the output.
 
-   Also, look at generating `runsnakerun`_ output.
+   Also, look at generating [runsnakerun](http://www.vrplumber.com/programming/runsnakerun) output.
 
-.. _runsnakerun: http://www.vrplumber.com/programming/runsnakerun/
-
-2) Other analysis tools, like walking the ref graph.
+2. Other analysis tools, like walking the ref graph.
 
    I'm thinking something similar to PDB, which could let you walk
    up-and-down the reference graph, to let you figure out why that one
@@ -22,17 +19,13 @@ A fairly random collection of things to work on next...
    At the moment, you can do this using '*' in Vim, which is at least a
    start, and one reason to use a text-compatible dump format.
 
-3) Dump differencing utilities.
+3. Dump differencing utilities.
 
    This probably will make it a bit easier to see where memory is
    increasing, rather than just where it is at right now.
 
-4) Full cross-platform and version compatibility testing.
+4. Full cross-platform and version compatibility testing.
 
    I'd like to support python2.4+, 32/64-bit, Win/Linux/Mac. I've tested
    a couple variants, but I don't have all of them to make sure it works
    everywhere.
-
-
-..
-   vim: ft=rst
